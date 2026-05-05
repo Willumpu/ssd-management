@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}编辑测试项{% else %}新建测试项{% endif %} - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}{% if object %}编辑测试项{% else %}新建测试项{% endif %}{% endblock %}
+
+{% block extra_js %}
+{{ form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto animate-slide-in">
+    <div class="glass rounded-xl p-6 border border-slate-700/50">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {% if request.GET.project or form.instance.project %}
+            <div class="hidden">{{ form.project }}</div>
+            {% endif %}
+            {% if request.GET.fae_task %}
+            <input type="hidden" name="fae_task" value="{{ request.GET.fae_task }}">
+            {% endif %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 跟踪人 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">跟踪人 <span class="text-red-500">*</span></label>
+                    <select name="tracker" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择跟踪人</option>
+                        {% for user in form.tracker.field.queryset %}
+                        <option value="{{ user.pk }}" {% if form.tracker.value == user.pk %}selected{% endif %}>
+                            {{ user.get_full_name|default:user.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 所属客户 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">所属客户 <span class="text-red-500">*</span></label>
+                    <select name="customer" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择客户</option>
+                        {% for customer in form.customer.field.queryset %}
+                        <option value="{{ customer.pk }}" {% if form.customer.value == customer.pk %}selected{% endif %}>
+                            {{ customer.customer_code }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 测试内容 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">测试内容 <span class="text-red-500">*</span></label>
+                    <select name="test_content" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择测试内容</option>
+                        {% for value, label in form.test_content.field.choices %}
+                        <option value="{{ value }}" {% if form.test_content.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 测试方案 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">测试方案</label>
+                    <select name="solution"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择（可选）</option>
+                        {% for solution in form.solution.field.queryset %}
+                        <option value="{{ solution.pk }}" {% if form.solution.value == solution.pk %}selected{% endif %}>
+                            {{ solution.solution_number }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 测试状态（仅编辑时） -->
+                {% if object %}
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">测试状态</label>
+                    <select name="status"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        {% for value, label in form.status.field.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <!-- 开始时间（创建和编辑都可填写） -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">开始时间</label>
+                    <input type="datetime-local" name="start_date" 
+                           value="{% if form.start_date.value %}{{ form.start_date.value|date:'Y-m-d\\TH:i' }}{% endif %}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                <!-- 结束时间（仅编辑时） -->
+                {% if object %}
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">结束时间</label>
+                    <input type="datetime-local" name="end_date" 
+                           value="{% if form.end_date.value %}{{ form.end_date.value|date:'Y-m-d\\TH:i' }}{% endif %}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                {% endif %}
+
+                <!-- 样品数量 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">样品总数量</label>
+                    <input type="number" name="total_samples" value="{{ form.total_samples.value|default:0 }}" min="0"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                {% if object %}
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">通过数量</label>
+                    <input type="number" name="passed_samples" value="{{ form.passed_samples.value|default:0 }}" min="0"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">异常数量</label>
+                    <input type="number" name="abnormal_samples_count" value="{{ form.abnormal_samples_count.value|default:0 }}" min="0"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <a href="{% url 'testing:test_list' %}" class="px-6 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors">
+                    取消
+                </a>
+                <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg shadow-blue-600/20">
+                    {% if object %}保存修改{% else %}创建测试项{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

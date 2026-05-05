@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}编辑异常样品{% else %}新建异常样品{% endif %} - SSD FAE业务管理系统{% endblock %}
+
+{% block extra_css %}
+{{ form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto animate-slide-in">
+    <!-- 页面标题 -->
+    <div class="flex items-center gap-4 mb-6">
+        <a href="{% url 'abnormal:abnormal_list' %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">
+            {% if form.instance.pk %}编辑异常样品{% else %}新建异常样品{% endif %}
+        </h2>
+    </div>
+
+    <!-- 表单 -->
+    <form method="post" class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        {% csrf_token %}
+        {% if request.GET.project or form.instance.project %}
+        <div class="hidden">{{ form.project }}</div>
+        {% endif %}
+        
+        <!-- 基本信息 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">基本信息</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 客户 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">客户 <span class="text-red-400">*</span></label>
+                    <select name="customer" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择客户...</option>
+                        {% for customer in form.customer.field.queryset %}
+                        <option value="{{ customer.pk }}" {% if form.customer.value == customer.pk %}selected{% endif %}>{{ customer.customer_code }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.customer.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.customer.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 优先级 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">优先级</label>
+                    <select name="priority" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="urgent" {% if form.priority.value == 'urgent' %}selected{% endif %} class="text-red-400">紧急</option>
+                        <option value="high" {% if form.priority.value == 'high' %}selected{% endif %} class="text-orange-400">高</option>
+                        <option value="normal" {% if form.priority.value == 'normal' or not form.priority.value %}selected{% endif %} class="text-blue-400">一般</option>
+                    </select>
+                </div>
+
+                <!-- 样品方案 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">样品方案</label>
+                    <select name="solution" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择方案...</option>
+                        {% for solution in form.solution.field.queryset %}
+                        <option value="{{ solution.pk }}" {% if form.solution.value == solution.pk %}selected{% endif %}>{{ solution.solution_number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 所属测试 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">所属测试</label>
+                    <select name="test_item" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">{% if form.test_item.field.queryset %}选择关联测试项（可选）{% else %}暂无可选测试项{% endif %}</option>
+                        {% for test in form.test_item.field.queryset %}
+                        <option value="{{ test.pk }}" {% if form.test_item.value == test.pk or form.instance.test_item_id == test.pk %}selected{% endif %}>{{ test.test_number }} - {{ test.get_test_content_display }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not form.test_item.field.queryset %}
+                    <p class="text-yellow-500 text-xs mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>请先创建测试项</p>
+                    {% endif %}
+                </div>
+
+                <!-- 分析负责人 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">分析负责人</label>
+                    <select name="assignee" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择负责人...</option>
+                        {% for user in form.assignee.field.queryset %}
+                        <option value="{{ user.pk }}" {% if form.assignee.value == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志获取 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">日志获取</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {% with logs_list=form.instance.logs_collected|default:'' %}
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="FW Running Log" 
+                        {% if 'FW Running Log' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">FW Running Log</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="FW Nlog" 
+                        {% if 'FW Nlog' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">FW Nlog</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="FW Info" 
+                        {% if 'FW Info' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">FW Info</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="FW Power On Log" 
+                        {% if 'FW Power On Log' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">FW Power On Log</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="FW Memory Dump" 
+                        {% if 'FW Memory Dump' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">FW Memory Dump</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="RDT Running Log" 
+                        {% if 'RDT Running Log' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">RDT Running Log</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="RDT All Flush Log" 
+                        {% if 'RDT All Flush Log' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">RDT All Flush Log</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-slate-600 cursor-pointer transition-all">
+                    <input type="checkbox" name="logs_collected" value="RDT Detail" 
+                        {% if 'RDT Detail' in logs_list %}checked{% endif %}
+                        class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                    <span class="text-sm text-slate-300">RDT Detail</span>
+                </label>
+                {% endwith %}
+            </div>
+        </div>
+
+        <!-- 异常描述 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">异常描述</h3>
+            {{ form.abnormal_description }}
+        </div>
+
+        <!-- 按钮 -->
+        <div class="p-6 flex justify-end gap-3">
+            <a href="{% url 'abnormal:abnormal_list' %}" class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                取消
+            </a>
+            <button type="submit" class="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all shadow-lg shadow-red-600/20">
+                {% if form.instance.pk %}保存修改{% else %}创建异常样品{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 表单验证
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const customer = document.querySelector('select[name="customer"]').value;
+        if (!customer) {
+            e.preventDefault();
+            alert('请选择客户');
+            return false;
+        }
+    });
+</script>
+{% endblock %}

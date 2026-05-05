@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}研发需求管理 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}研发需求管理{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in">
+    <!-- 页面标题和操作栏 - 移动端优化 -->
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 class="text-xl font-semibold text-white">研发需求管理</h2>
+        <a href="{% url 'rd_requirement:requirement_create' %}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20">
+            <i class="fas fa-plus"></i>
+            <span>新建需求</span>
+        </a>
+    </div>
+
+    <!-- 筛选栏 - 移动端垂直堆叠 -->
+    <div class="glass rounded-xl p-3 lg:p-4 border border-slate-700/50">
+        <!-- 搜索框 - 移动端全宽 -->
+        <form method="get" class="mb-3">
+            <div class="flex gap-2">
+                {% if current_type %}<input type="hidden" name="type" value="{{ current_type }}">{% endif %}
+                {% if current_priority %}<input type="hidden" name="priority" value="{{ current_priority }}">{% endif %}
+                {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+                <input type="text" name="search" value="{{ request.GET.search }}" placeholder="搜索需求编号/标题..." 
+                       class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                <button type="submit" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">
+                    <i class="fas fa-search"></i>
+                </button>
+                {% if request.GET.search %}
+                <a href="?{% if current_type %}type={{ current_type }}&{% endif %}{% if current_priority %}priority={{ current_priority }}&{% endif %}{% if current_status %}status={{ current_status }}{% endif %}" 
+                   class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </div>
+        </form>
+        
+        <!-- 筛选下拉 - 移动端三列网格 -->
+        <div class="grid grid-cols-3 gap-2">
+            <select id="type-filter" onchange="window.location.href=this.value" 
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-xs lg:text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+                <option value="?{% if current_priority %}priority={{ current_priority }}&{% endif %}{% if current_status %}status={{ current_status }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}{% endif %}">全部类型</option>
+                {% for value, label in type_choices %}
+                <option value="?type={{ value }}{% if current_priority %}&priority={{ current_priority }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" 
+                        {% if current_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            
+            <select id="priority-filter" onchange="window.location.href=this.value" 
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-xs lg:text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+                <option value="?{% if current_type %}type={{ current_type }}&{% endif %}{% if current_status %}status={{ current_status }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}{% endif %}">全部优先级</option>
+                {% for value, label in priority_choices %}
+                <option value="?priority={{ value }}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" 
+                        {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            
+            <select id="status-filter" onchange="window.location.href=this.value" 
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-xs lg:text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+                <option value="?{% if current_type %}type={{ current_type }}&{% endif %}{% if current_priority %}priority={{ current_priority }}&{% endif %}{% if request.GET.search %}search={{ request.GET.search }}{% endif %}">全部状态</option>
+                {% for value, label in status_choices %}
+                <option value="?status={{ value }}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_priority %}&priority={{ current_priority }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" 
+                        {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- 需求列表 - 桌面端表格，移动端卡片 -->
+    <!-- 桌面端表格 -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">需求编号</th>
+                    <th class="px-6 py-4 font-medium">标题</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">类型</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">优先级</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">状态</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">时间进度</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">延期风险</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">负责人</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for req in requirements %}
+                <tr class="table-row-hover border-l-2 border-transparent hover:border-blue-500 cursor-pointer"
+                    onclick="window.location.href='{% url 'rd_requirement:requirement_detail' req.pk %}'">
+                    <td class="px-6 py-4 mono text-blue-400 whitespace-nowrap">{{ req.requirement_number }}</td>
+                    <td class="px-6 py-4 font-medium text-white">{{ req.title|truncatechars:30 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ req.get_requirement_type_display }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 rounded text-xs font-medium 
+                            {% if req.priority == 'p0' %}bg-red-500/20 text-red-400 border border-red-500/30
+                            {% elif req.priority == 'p1' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
+                            {% else %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% endif %}">
+                            {{ req.get_priority_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 rounded text-xs {{ req.get_status_display_class }}">
+                            {{ req.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% with time_progress=req.get_time_progress_display %}
+                        {% if req.status != 'customer_verifying' and req.status != 'archived' and req.status != 'paused' %}
+                        <div class="flex items-center gap-2">
+                            <div class="w-16 bg-slate-700 rounded-full h-1.5">
+                                <div class="{{ time_progress.color }} h-1.5 rounded-full" style="width: {{ time_progress.percent }}%"></div>
+                            </div>
+                            <span class="text-xs text-slate-400">{{ time_progress.display }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-xs text-slate-500">-</span>
+                        {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded text-xs {{ req.get_delay_risk_display_class }}">
+                            {{ req.get_delay_risk_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ req.assignee.get_full_name|default:req.assignee.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-6 py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>暂无研发需求</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 移动端卡片列表 -->
+    <div class="lg:hidden space-y-3">
+        {% for req in requirements %}
+        <div class="glass rounded-xl p-4 border border-slate-700/50 cursor-pointer hover:border-blue-500/50 transition-colors"
+             onclick="window.location.href='{% url 'rd_requirement:requirement_detail' req.pk %}'">
+            <!-- 第一行：编号和优先级 -->
+            <div class="flex items-center justify-between mb-2">
+                <span class="mono text-blue-400 text-sm">{{ req.requirement_number }}</span>
+                <span class="px-2 py-0.5 rounded text-xs font-medium 
+                    {% if req.priority == 'p0' %}bg-red-500/20 text-red-400 border border-red-500/30
+                    {% elif req.priority == 'p1' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
+                    {% else %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% endif %}">
+                    {{ req.get_priority_display }}
+                </span>
+            </div>
+            
+            <!-- 标题 -->
+            <h3 class="font-medium text-white mb-3 line-clamp-2">{{ req.title }}</h3>
+            
+            <!-- 信息网格 -->
+            <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+                <div class="flex items-center gap-1.5">
+                    <i class="fas fa-tag text-slate-500 w-3"></i>
+                    <span class="text-slate-300">{{ req.get_requirement_type_display }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <i class="fas fa-user text-slate-500 w-3"></i>
+                    <span class="text-slate-300">{{ req.assignee.get_full_name|default:req.assignee.username }}</span>
+                </div>
+            </div>
+            
+            <!-- 状态和风险 -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded text-xs {{ req.get_status_display_class }}">
+                        {{ req.get_status_display }}
+                    </span>
+                    <span class="text-xs {{ req.get_delay_risk_display_class }}">
+                        {{ req.get_delay_risk_display }}
+                    </span>
+                </div>
+                
+                <!-- 时间进度 -->
+                {% with time_progress=req.get_time_progress_display %}
+                {% if req.status != 'customer_verifying' and req.status != 'archived' and req.status != 'paused' %}
+                <div class="flex items-center gap-1.5">
+                    <div class="w-12 bg-slate-700 rounded-full h-1">
+                        <div class="{{ time_progress.color }} h-1 rounded-full" style="width: {{ time_progress.percent }}%"></div>
+                    </div>
+                    <span class="text-xs text-slate-400">{{ time_progress.display }}</span>
+                </div>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="glass rounded-xl p-8 border border-slate-700/50 text-center text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4"></i>
+            <p>暂无研发需求</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 分页 - 移动端简化 -->
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_priority %}&priority={{ current_priority }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" 
+           class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+        
+        <span class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm">
+            {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+        </span>
+        
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_type %}&type={{ current_type }}{% endif %}{% if current_priority %}&priority={{ current_priority }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}" 
+           class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

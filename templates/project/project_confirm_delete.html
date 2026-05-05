@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}删除项目 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}删除项目{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto animate-slide-in">
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden p-8 text-center">
+        <div class="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
+            <i class="fas fa-exclamation-triangle text-red-400 text-2xl"></i>
+        </div>
+        <h2 class="text-xl font-semibold text-white mb-2">确认删除此项目?</h2>
+        <p class="text-slate-400 mb-2">项目编号：<span class="mono text-amber-400">{{ project.project_number }}</span></p>
+        <p class="text-slate-400 mb-2">项目名称：<span class="text-white">{{ project.name }}</span></p>
+        <p class="text-sm text-slate-500 mb-8">该项目下的所有关联条目和时间线记录也将被一并删除。</p>
+
+        <form method="post" class="flex justify-center gap-4">
+            {% csrf_token %}
+            <a href="{% url 'project:project_detail' project.pk %}" class="px-6 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700">
+                取消
+            </a>
+            <button type="submit" class="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition-colors flex items-center gap-2">
+                <i class="fas fa-trash-alt"></i>
+                <span>确认删除</span>
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

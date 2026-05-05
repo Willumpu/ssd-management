@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ solution.solution_number }} - 方案详情 - SSD FAE业务管理系统{% endblock %}
+
+{% block extra_js %}
+{{ comment_form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 返回按钮和标题 -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'solution:solution_list' %}" class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">方案详情</h2>
+        <span class="ml-auto px-3 py-1 rounded-full text-xs {{ solution.get_status_display_class }}">
+            {{ solution.get_status_display }}
+        </span>
+    </div>
+
+    <!-- 方案编号卡片 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 bg-gradient-to-r from-blue-600/10 to-purple-600/10">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs lg:text-sm text-slate-400 mb-1">方案编号</p>
+                <p class="text-lg lg:text-2xl font-bold mono text-white break-all">{{ solution.solution_number }}</p>
+            </div>
+            <div class="flex gap-2 lg:gap-3">
+                <a href="{% url 'solution:solution_update' solution.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm">
+                    <i class="fas fa-edit lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
+                </a>
+                <a href="{% url 'solution:solution_delete' solution.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30 transition-colors text-sm" onclick="return confirm('确定要删除此方案吗？');">
+                    <i class="fas fa-trash-alt lg:mr-2"></i><span class="hidden lg:inline">删除</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 方案信息网格 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-6">
+        <!-- 主控型号 -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                    <i class="fas fa-microchip text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">主控型号</p>
+            </div>
+            <p class="text-base lg:text-lg font-semibold text-white">{{ solution.controller_model }}</p>
+        </div>
+
+        <!-- Flash型号 -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
+                    <i class="fas fa-memory text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">Flash型号</p>
+            </div>
+            <p class="text-base lg:text-lg font-semibold text-white">{{ solution.flash_model }}</p>
+        </div>
+
+        <!-- Flash数量 -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                    <i class="fas fa-layer-group text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">Flash数量</p>
+            </div>
+            <p class="text-base lg:text-lg font-semibold text-white">{{ solution.flash_count }} 片</p>
+        </div>
+
+        <!-- PCB型号（多选） -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
+                    <i class="fas fa-print text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">PCB型号</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% for pcb in solution.pcb_models.all %}
+                <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs lg:text-sm">{{ pcb.name }}</span>
+                {% empty %}
+                <span class="text-slate-500 text-sm">未选择</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 软件版本 -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center text-yellow-400">
+                    <i class="fas fa-code-branch text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">软件版本</p>
+            </div>
+            <p class="text-base lg:text-lg font-semibold mono text-white break-all">{{ solution.software_version }}</p>
+        </div>
+
+        <!-- 发布日期 -->
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-3 lg:mb-4">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400">
+                    <i class="fas fa-calendar-alt text-sm lg:text-base"></i>
+                </div>
+                <p class="text-xs lg:text-sm text-slate-400">发布日期</p>
+            </div>
+            <p class="text-base lg:text-lg font-semibold text-white">{{ solution.release_date|date:"Y-m-d" }}</p>
+        </div>
+    </div>
+
+    <!-- 方案描述 -->
+    {% if solution.description %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="text-base lg:text-lg font-semibold text-white mb-3 lg:mb-4 flex items-center gap-2">
+            <i class="fas fa-align-left text-slate-400"></i>
+            方案描述
+        </h3>
+        <div class="bg-slate-900/50 rounded-lg p-3 lg:p-4 text-slate-300 leading-relaxed text-sm lg:text-base">
+            <div class="rich-text-content">{{ solution.description|safe }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 附件下载 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="text-base lg:text-lg font-semibold text-white mb-3 lg:mb-4 flex items-center gap-2">
+            <i class="fas fa-paperclip text-slate-400"></i>
+            附件下载
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+            <!-- 软件 -->
+            {% if solution.software_file %}
+            <a href="{{ solution.software_file.url }}" download class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-blue-500/50 hover:bg-slate-800 transition-all group">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/30 flex-shrink-0">
+                    <i class="fas fa-file-archive text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-white text-sm truncate">软件固件</p>
+                    <p class="text-xs text-slate-500 mono break-all">{{ solution.software_file.name|cut:"solutions/software/" }}</p>
+                </div>
+                <i class="fas fa-download text-slate-500 group-hover:text-blue-400"></i>
+            </a>
+            {% else %}
+            <div class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-900/30 border border-slate-800 opacity-50">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-slate-800 flex items-center justify-center text-slate-600 flex-shrink-0">
+                    <i class="fas fa-file-archive text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-slate-500 text-sm">软件固件</p>
+                    <p class="text-xs text-slate-600">暂无附件</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 生产资料 -->
+            {% if solution.production_data %}
+            <a href="{{ solution.production_data.url }}" download class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-green-500/50 hover:bg-slate-800 transition-all group">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400 group-hover:bg-green-500/30 flex-shrink-0">
+                    <i class="fas fa-file-archive text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-white text-sm truncate">生产资料</p>
+                    <p class="text-xs text-slate-500 mono break-all">{{ solution.production_data.name|cut:"solutions/production/" }}</p>
+                </div>
+                <i class="fas fa-download text-slate-500 group-hover:text-green-400"></i>
+            </a>
+            {% else %}
+            <div class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-900/30 border border-slate-800 opacity-50">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-slate-800 flex items-center justify-center text-slate-600 flex-shrink-0">
+                    <i class="fas fa-file-archive text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-slate-500 text-sm">生产资料</p>
+                    <p class="text-xs text-slate-600">暂无附件</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 测试报告 -->
+            {% if solution.test_report %}
+            <a href="{{ solution.test_report.url }}" download class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-purple-500/50 hover:bg-slate-800 transition-all group">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/30 flex-shrink-0">
+                    <i class="fas fa-file-pdf text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-white text-sm truncate">测试报告</p>
+                    <p class="text-xs text-slate-500 mono break-all">{{ solution.test_report.name|cut:"solutions/reports/" }}</p>
+                </div>
+                <i class="fas fa-download text-slate-500 group-hover:text-purple-400"></i>
+            </a>
+            {% else %}
+            <div class="flex items-center gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-900/30 border border-slate-800 opacity-50">
+                <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-slate-800 flex items-center justify-center text-slate-600 flex-shrink-0">
+                    <i class="fas fa-file-pdf text-lg lg:text-xl"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-slate-500 text-sm">测试报告</p>
+                    <p class="text-xs text-slate-600">暂无附件</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 评论区域 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="text-base lg:text-lg font-semibold text-white mb-4 lg:mb-6 flex items-center gap-2">
+            <i class="fas fa-comments text-slate-400"></i>
+            评论
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ solution.comments.count }}</span>
+        </h3>
+
+        <!-- 评论列表 -->
+        <div class="space-y-3 lg:space-y-4 mb-4 lg:mb-6">
+            {% for comment in solution.comments.all %}
+            <div class="flex gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                {% if comment.author.avatar %}
+                <img src="{{ comment.author.avatar.url }}" alt="头像" class="w-8 h-8 lg:w-10 lg:h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs lg:text-sm flex-shrink-0">
+                    {{ comment.author.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-1 lg:mb-2">
+                        <div class="flex items-center gap-2 lg:gap-3">
+                            <span class="font-medium text-white text-sm">{{ comment.author.get_full_name|default:comment.author.username }}</span>
+                            <span class="text-xs text-slate-500">{{ comment.created_at|date:"m-d H:i" }}</span>
+                        </div>
+                        {% if comment.author == request.user %}
+                        <form method="post" action="{% url 'solution:delete_comment' comment.pk %}" class="inline" onsubmit="return confirm('确定要删除这条评论吗？');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-slate-500 hover:text-red-400 text-xs transition-colors" title="删除评论">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div class="text-slate-300 leading-relaxed rich-text-content text-sm">{{ comment.content|safe }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-comment-slash text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无评论，来发表第一条评论吧</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 添加评论表单 -->
+        <form action="{% url 'solution:solution_comment_create' solution.pk %}" method="post" class="mt-4 lg:mt-6" novalidate>
+            {% csrf_token %}
+            <!-- 评论编辑器（移动端和电脑端共用一个） -->
+            {{ comment_form.content }}
+            <!-- 手机端布局 -->
+            <div class="lg:hidden">
+                <div class="flex items-center gap-2 mb-2">
+                    {% if request.user.avatar %}
+                    <img src="{{ request.user.avatar.url }}" alt="头像" class="w-8 h-8 rounded-full object-cover border border-slate-600">
+                    {% else %}
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
+                        {{ request.user.username|first|upper }}
+                    </div>
+                    {% endif %}
+                    <span class="text-sm text-slate-400">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm flex items-center gap-2">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                        <span>发表</span>
+                    </button>
+                </div>
+            </div>
+            <!-- 电脑端布局 -->
+            <div class="hidden lg:flex gap-4 mt-4">
+                {% if request.user.avatar %}
+                <img src="{{ request.user.avatar.url }}" alt="头像" class="w-10 h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    {{ request.user.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1">
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2 text-sm">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                            <span>发表评论</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base flex items-center gap-2">
+            <i class="fas fa-history text-slate-400"></i>
+            操作日志
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ solution.logs.count }}</span>
+        </h3>
+        <div class="space-y-3">
+            {% for log in solution.logs.all %}
+            <div class="flex gap-3 lg:gap-4 p-2 lg:p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+                {% if log.operator.avatar %}
+                <img src="{{ log.operator.avatar.url }}" alt="头像" class="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">
+                    {{ log.operator.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-1">
+                        <p class="text-sm text-white">
+                            <span class="font-medium">{{ log.operator.get_full_name|default:log.operator.username }}</span>
+                            <span class="text-slate-400 text-xs lg:text-sm">{{ log.action }}</span>
+                        </p>
+                        <span class="text-xs text-slate-500 flex-shrink-0">{{ log.created_at|date:"m-d H:i" }}</span>
+                    </div>
+                    {% if log.comment %}
+                    <p class="text-xs text-slate-400 mt-1">{{ log.comment }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-history text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无操作日志</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 元信息 -->
+    <div class="glass rounded-xl p-4 border border-slate-700/50">
+        <div class="flex flex-wrap gap-6 text-xs text-slate-500">
+            <span><i class="fas fa-user mr-1"></i>创建者: {{ solution.created_by|default:"系统" }}</span>
+            <span><i class="fas fa-clock mr-1"></i>创建时间: {{ solution.created_at|date:"Y-m-d H:i" }}</span>
+            <span><i class="fas fa-sync mr-1"></i>更新时间: {{ solution.updated_at|date:"Y-m-d H:i" }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

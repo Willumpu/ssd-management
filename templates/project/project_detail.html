@@ -1,0 +1,348 @@
+{% extends 'base.html' %}
+{% load project_extras %}
+
+{% block title %}{{ project.name }} - 项目详情 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}项目详情{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 页面标题 -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'project:project_list' %}" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fas fa-arrow-left text-lg"></i>
+            </a>
+            <div>
+                <h2 class="text-xl font-semibold text-white">{{ project.name }}</h2>
+                <p class="text-sm text-slate-500 mono">{{ project.project_number }}</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'project:project_update' project.pk %}" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-slate-700">
+                <i class="fas fa-edit"></i>
+                <span>编辑</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 项目基本信息 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">基本信息</h3>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">项目编号</p>
+                <p class="text-sm text-white mono">{{ project.project_number }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">项目名称</p>
+                <p class="text-sm text-white">{{ project.name }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">状态</p>
+                <p class="text-sm">
+                    <span class="px-2 py-1 rounded text-xs border
+                        {% if project.status == 'active' %}bg-green-500/20 text-green-400 border-green-500/30{% elif project.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
+                        {{ project.get_status_display }}
+                    </span>
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">关联客户</p>
+                <p class="text-sm text-slate-300">{{ project.customer.customer_code|default:'-' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">创建人</p>
+                <p class="text-sm text-slate-300">{{ project.created_by.get_full_name|default:project.created_by.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">创建时间</p>
+                <p class="text-sm text-slate-500">{{ project.created_at|date:'Y-m-d H:i' }}</p>
+            </div>
+        </div>
+        {% if project.description %}
+        <div class="px-6 pb-6">
+            <p class="text-xs text-slate-500 mb-1">项目描述</p>
+            <p class="text-sm text-slate-300 whitespace-pre-wrap">{{ project.description }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 快捷新建操作 -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <a href="{{ create_urls.fae_task }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-blue-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-headset text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建FAE任务</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.fae_tasks }}</span>
+        </a>
+        <a href="{{ create_urls.test_item }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-cyan-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-cyan-600/20 text-cyan-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-vial text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建测试跟踪</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.test_items }}</span>
+        </a>
+        <a href="{{ create_urls.abnormal_sample }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-red-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-red-600/20 text-red-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-exclamation-triangle text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建异常样品</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.abnormal_samples }}</span>
+        </a>
+        <a href="{{ create_urls.solution }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-indigo-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-file-alt text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建方案</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.solutions }}</span>
+        </a>
+        <a href="{{ create_urls.rd_requirement }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-green-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-green-600/20 text-green-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-flask text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建研发需求</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.rd_requirements }}</span>
+        </a>
+        <a href="{{ create_urls.sample_material }}" class="glass rounded-xl p-3 border border-slate-700/50 hover:border-amber-500/50 transition-all text-center">
+            <div class="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-400 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-box text-xs"></i>
+            </div>
+            <span class="text-xs text-slate-300">新建样品物料</span>
+            <span class="block text-lg font-bold text-white">{{ related_counts.sample_materials }}</span>
+        </a>
+    </div>
+
+    <!-- 时间线 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-stream text-slate-400 text-sm"></i>
+                活动时间线
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ activities|length }} 条</span>
+            </h3>
+        </div>
+        {% if activities %}
+        <div class="p-6">
+            <div class="relative border-l-2 border-slate-700 ml-3 space-y-6">
+                {% for activity in activities %}
+                <div class="relative pl-6">
+                    <!-- 节点圆点 -->
+                    <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-slate-700
+                        {% if activity.action == 'create' %}bg-green-500{% elif activity.action == 'update' %}bg-blue-500{% elif activity.action == 'delete' %}bg-red-500{% elif activity.action == 'transfer' %}bg-amber-500{% else %}bg-slate-500{% endif %}">
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
+                        <div class="flex-1 min-w-0">
+                            <!-- 标题行：模块类型 + 操作标签 + 编号 -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs px-2 py-0.5 rounded border
+                                    {% if activity.module_type == 'fae_task' %}bg-blue-500/10 text-blue-400 border-blue-500/20{% elif activity.module_type == 'test_item' %}bg-cyan-500/10 text-cyan-400 border-cyan-500/20{% elif activity.module_type == 'abnormal_sample' %}bg-red-500/10 text-red-400 border-red-500/20{% elif activity.module_type == 'solution' %}bg-indigo-500/10 text-indigo-400 border-indigo-500/20{% elif activity.module_type == 'rd_requirement' %}bg-green-500/10 text-green-400 border-green-500/20{% elif activity.module_type == 'sample_material' %}bg-amber-500/10 text-amber-400 border-amber-500/20{% elif activity.module_type == 'material_transfer' %}bg-orange-500/10 text-orange-400 border-orange-500/20{% else %}bg-slate-700/50 text-slate-400 border-slate-600{% endif %}">
+                                    {{ activity.get_module_display_name }}
+                                </span>
+                                <span class="text-xs px-2 py-0.5 rounded
+                                    {% if activity.action == 'create' %}bg-green-500/10 text-green-400{% elif activity.action == 'update' %}bg-blue-500/10 text-blue-400{% elif activity.action == 'delete' %}bg-red-500/10 text-red-400{% elif activity.action == 'transfer' %}bg-amber-500/10 text-amber-400{% else %}bg-slate-700/50 text-slate-400{% endif %}">
+                                    {{ activity.get_action_display }}
+                                </span>
+                                <span class="text-sm text-amber-400 mono">{{ activity.title }}</span>
+                                {% if activity.subtitle %}
+                                <span class="text-sm text-slate-300 truncate max-w-md">| {{ activity.subtitle }}</span>
+                                {% endif %}
+                            </div>
+                            <!-- 详细描述 -->
+                            {% if activity.description %}
+                            <div class="mt-2 space-y-1">
+                                {% with desc_parts=activity.description|cut:'；'|split:'|' %}
+                                {% for part in desc_parts %}
+                                    {% if part %}
+                                    <p class="text-xs text-slate-400 flex items-start gap-1">
+                                        <i class="fas fa-angle-right text-slate-600 mt-0.5 text-[10px]"></i>
+                                        <span>{{ part }}</span>
+                                    </p>
+                                    {% endif %}
+                                {% endfor %}
+                                {% endwith %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs text-slate-500 whitespace-nowrap flex flex-col items-end gap-0.5">
+                            <span>{{ activity.created_at|date:'Y-m-d H:i' }}</span>
+                            <span class="text-slate-600">{{ activity.actor.get_full_name|default:activity.actor.username }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="p-8 text-center text-slate-500">
+            <i class="fas fa-history text-3xl mb-2 block"></i>
+            <p>暂无活动记录</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- FAE任务 -->
+    {% if fae_tasks %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-headset text-blue-400 text-sm"></i>
+                FAE任务
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ fae_tasks|length }}</span>
+            </h3>
+            <a href="{{ create_urls.fae_task }}" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for task in fae_tasks %}
+            <a href="{% url 'fae:task_detail' task.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ task.task_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ task.summary|default:task.customer.customer_code }}</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ task.get_status_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 测试跟踪 -->
+    {% if test_items %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-vial text-cyan-400 text-sm"></i>
+                测试跟踪
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ test_items|length }}</span>
+            </h3>
+            <a href="{{ create_urls.test_item }}" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for test in test_items %}
+            <a href="{% url 'testing:test_detail' test.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ test.test_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ test.get_test_content_display }}</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ test.get_status_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 异常样品 -->
+    {% if abnormal_samples %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
+                异常样品
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ abnormal_samples|length }}</span>
+            </h3>
+            <a href="{{ create_urls.abnormal_sample }}" class="text-xs text-red-400 hover:text-red-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for sample in abnormal_samples %}
+            <a href="{% url 'abnormal:abnormal_detail' sample.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ sample.sample_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ sample.customer.customer_code }}</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ sample.get_status_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 方案 -->
+    {% if solutions %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-file-alt text-indigo-400 text-sm"></i>
+                方案
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ solutions|length }}</span>
+            </h3>
+            <a href="{{ create_urls.solution }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for solution in solutions %}
+            <a href="{% url 'solution:solution_detail' solution.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ solution.solution_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ solution.controller_model.name }} / {{ solution.flash_model.name }}</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ solution.get_status_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 研发需求 -->
+    {% if rd_requirements %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-flask text-green-400 text-sm"></i>
+                研发需求
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ rd_requirements|length }}</span>
+            </h3>
+            <a href="{{ create_urls.rd_requirement }}" class="text-xs text-green-400 hover:text-green-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for req in rd_requirements %}
+            <a href="{% url 'rd_requirement:requirement_detail' req.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ req.requirement_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ req.title }}</div>
+                    </div>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ req.get_status_display }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 样品物料 -->
+    {% if sample_materials %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-box text-amber-400 text-sm"></i>
+                样品物料
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ sample_materials|length }}</span>
+            </h3>
+            <a href="{{ create_urls.sample_material }}" class="text-xs text-amber-400 hover:text-amber-300 transition-colors">+ 新建</a>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for mat in sample_materials %}
+            <a href="{% url 'sample_shipment:material_detail' mat.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ mat.material_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ mat.name }}</div>
+                    </div>
+                    <span class="text-sm font-bold text-white">{{ mat.get_total_stock }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

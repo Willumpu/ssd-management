@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.task_number }} - FAE任务详情{% endblock %}
+{% block page_title %}FAE任务详情{% endblock %}
+
+{% block extra_js %}
+{{ comment_form.media }}
+<script>
+    // 页面加载时自动标记该任务相关的所有通知为已读
+    document.addEventListener('DOMContentLoaded', function() {
+        // 获取CSRF Token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // 只标记与该任务相关的通知为已读
+        fetch('/fae/notifications/task/{{ task.pk }}/mark-read/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                console.log('该任务的通知已标记为已读');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in">
+    <!-- Task Header -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-3 lg:gap-0 mb-4">
+            <div>
+                <div class="flex flex-wrap items-center gap-2 lg:gap-3 mb-2">
+                    <span class="mono text-blue-400 text-base lg:text-lg">{{ task.task_number }}</span>
+                    <span class="px-2 py-1 rounded text-xs {% if task.status == 'completed' %}status-resolved{% elif task.status == 'in_progress' %}status-processing{% elif task.status == 'pending_review' %}status-pending{% elif task.status == 'paused' %}bg-slate-800 text-slate-400{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                        {{ task.get_status_display }}
+                    </span>
+                </div>
+                <h2 class="text-lg lg:text-xl font-bold text-white">{{ task.customer.customer_code }}</h2>
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'testing:test_create' %}?fae_task={{ task.pk }}" class="px-3 lg:px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm">
+                    <i class="fas fa-vial mr-1 lg:mr-2"></i><span class="hidden lg:inline">添加测试项</span>
+                </a>
+                <a href="{% url 'fae:task_update' task.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm">
+                    <i class="fas fa-edit mr-1 lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6 mt-4 lg:mt-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">任务类型</p>
+                <p class="text-white text-sm lg:text-base">{{ task.get_task_type_display }}</p>
+            </div>
+            {% if task.summary %}
+            <div class="col-span-2 lg:col-span-2">
+                <p class="text-xs text-slate-500 mb-1">任务概述</p>
+                <p class="text-white text-sm lg:text-base">{{ task.summary }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <p class="text-xs text-slate-500 mb-1">负责人</p>
+                <p class="text-white text-sm lg:text-base">{{ task.assignee.get_full_name|default:task.assignee.username }}</p>
+            </div>
+            <div class="col-span-2 lg:col-span-1">
+                <p class="text-xs text-slate-500 mb-1">创建时间</p>
+                <p class="text-white text-sm lg:text-base">{{ task.created_at|date:"Y-m-d H:i" }}</p>
+            </div>
+        </div>
+
+        {% if task.test_items.all %}
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-xs text-slate-500 mb-2">关联测试项</p>
+            <div class="flex flex-wrap gap-2">
+                {% for test_item in task.test_items.all %}
+                <a href="{% url 'testing:test_detail' test_item.pk %}" class="px-2 lg:px-3 py-1 lg:py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 text-xs lg:text-sm mono">
+                    {{ test_item.test_number }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Task Description -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">任务描述</h3>
+        <div class="prose prose-invert max-w-none">
+            <div class="text-slate-300 rich-text-content text-sm lg:text-base">{{ task.description|safe }}</div>
+        </div>
+    </div>
+
+    <!-- Task Result -->
+    {% if task.result %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">任务结论</h3>
+        <div class="prose prose-invert max-w-none">
+            <div class="text-slate-300 rich-text-content text-sm lg:text-base">{{ task.result|safe }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Review Section -->
+    {% if task.status == 'pending_review' or task.review_result != 'pending' %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">审核信息</h3>
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">审核结果</p>
+                <span class="px-2 py-1 rounded text-xs {% if task.review_result == 'passed' %}status-resolved{% elif task.review_result == 'rejected' %}status-urgent{% else %}status-pending{% endif %}">
+                    {{ task.get_review_result_display }}
+                </span>
+            </div>
+            {% if task.reviewed_by %}
+            <div>
+                <p class="text-xs text-slate-500 mb-1">审核人</p>
+                <p class="text-white text-sm lg:text-base">{{ task.reviewed_by.get_full_name|default:task.reviewed_by.username }}</p>
+            </div>
+            <div class="col-span-2 lg:col-span-1">
+                <p class="text-xs text-slate-500 mb-1">审核时间</p>
+                <p class="text-white text-sm lg:text-base">{{ task.reviewed_at|date:"Y-m-d H:i" }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% if task.review_comment %}
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-xs text-slate-500 mb-1">审核意见</p>
+            <p class="text-slate-300 text-sm lg:text-base">{{ task.review_comment }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Status Change & Review Actions -->
+    {% if user.role == 'fae' or user.role == 'fae_leader' or user.role == 'admin' %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">操作</h3>
+        <div class="flex flex-col lg:flex-row gap-3 lg:gap-4">
+            <!-- Status Change -->
+            <form method="post" action="{% url 'fae:task_change_status' task.pk %}" class="flex gap-2 flex-1 lg:flex-none" id="statusChangeForm">
+                {% csrf_token %}
+                <select name="status" id="statusSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500 flex-1 lg:flex-none">
+                    {% if user.role == 'fae_leader' or user.role == 'admin' %}
+                        {% for value, label in task.TASK_STATUS_CHOICES %}
+                        <option value="{{ value }}" {% if task.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="not_started" {% if task.status == 'not_started' %}selected{% endif %}>未开始</option>
+                        <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>进行中</option>
+                        <option value="pending_review" {% if task.status == 'pending_review' %}selected{% endif %}>待审核</option>
+                    {% endif %}
+                </select>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm whitespace-nowrap">
+                    变更状态
+                </button>
+            </form>
+            
+            <script>
+                document.getElementById('statusChangeForm').addEventListener('submit', function(e) {
+                    const status = document.getElementById('statusSelect').value;
+                    if (status === 'pending_review') {
+                        e.preventDefault();
+                        window.location.href = "{% url 'fae:task_change_status' task.pk %}?status=pending_review";
+                    }
+                });
+            </script>
+
+            <!-- Review Action (仅主管可见) -->
+            {% if user.role == 'fae_leader' or user.role == 'admin' and task.status == 'pending_review' %}
+            <form method="post" action="{% url 'fae:task_review' task.pk %}" class="flex flex-col lg:flex-row gap-2 lg:ml-auto">
+                {% csrf_token %}
+                <input type="text" name="review_comment" placeholder="审核意见..." 
+                       class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500 flex-1 lg:w-64">
+                <div class="flex gap-2">
+                    <button type="submit" name="review_result" value="rejected" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm flex-1 lg:flex-none">
+                        <i class="fas fa-times mr-1"></i><span class="hidden lg:inline">不通过</span><span class="lg:hidden">拒绝</span>
+                    </button>
+                    <button type="submit" name="review_result" value="passed" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm flex-1 lg:flex-none">
+                        <i class="fas fa-check mr-1"></i><span class="hidden lg:inline">通过</span><span class="lg:hidden">通过</span>
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 评论区域 - 移动端优化 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="text-base lg:text-lg font-semibold text-white mb-4 lg:mb-6 flex items-center gap-2">
+            <i class="fas fa-comments text-slate-400"></i>
+            评论
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ task.comments.count }}</span>
+        </h3>
+
+        <!-- 评论列表 -->
+        <div class="space-y-3 lg:space-y-4 mb-4 lg:mb-6">
+            {% for comment in task.comments.all %}
+            <div class="flex gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700/50" id="comment-{{ comment.pk }}">
+                {% if comment.author.avatar %}
+                <img src="{{ comment.author.avatar.url }}" alt="头像" class="w-8 h-8 lg:w-10 lg:h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs lg:text-sm flex-shrink-0">
+                    {{ comment.author.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-1 lg:mb-2">
+                        <div class="flex items-center gap-2 lg:gap-3">
+                            <span class="font-medium text-white text-sm">{{ comment.author.get_full_name|default:comment.author.username }}</span>
+                            <span class="text-xs text-slate-500">{{ comment.created_at|date:"m-d H:i" }}</span>
+                        </div>
+                        {% if comment.author == request.user %}
+                        <form action="{% url 'fae:delete_comment' comment.pk %}" method="post" class="inline" onsubmit="return confirm('确定要删除这条评论吗？');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-slate-500 hover:text-red-400 text-xs transition-colors" title="删除评论">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div class="text-slate-300 leading-relaxed rich-text-content text-sm">{{ comment.content|safe }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-comment-slash text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无评论，来发表第一条评论吧</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 添加评论表单 -->
+        <form action="{% url 'fae:add_comment' task.pk %}" method="post" class="mt-4 lg:mt-6" novalidate>
+            {% csrf_token %}
+            <!-- 评论编辑器（移动端和电脑端共用一个） -->
+            {{ comment_form.content }}
+            <!-- 手机端布局 -->
+            <div class="lg:hidden">
+                <div class="flex items-center gap-2 mb-2">
+                    {% if request.user.avatar %}
+                    <img src="{{ request.user.avatar.url }}" alt="头像" class="w-8 h-8 rounded-full object-cover border border-slate-600">
+                    {% else %}
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
+                        {{ request.user.username|first|upper }}
+                    </div>
+                    {% endif %}
+                    <span class="text-sm text-slate-400">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm flex items-center gap-2">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                        <span>发表</span>
+                    </button>
+                </div>
+            </div>
+            <!-- 电脑端布局 -->
+            <div class="hidden lg:flex gap-4 mt-4">
+                {% if request.user.avatar %}
+                <img src="{{ request.user.avatar.url }}" alt="头像" class="w-10 h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    {{ request.user.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1">
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2 text-sm">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                            <span>发表评论</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base flex items-center gap-2">
+            <i class="fas fa-history text-slate-400"></i>
+            操作日志
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ logs|length }}</span>
+        </h3>
+        <div class="space-y-3">
+            {% for log in logs %}
+            <div class="flex gap-3 lg:gap-4 p-2 lg:p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+                {% if log.operator.avatar %}
+                <img src="{{ log.operator.avatar.url }}" alt="头像" class="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">
+                    {{ log.operator.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-1">
+                        <p class="text-sm text-white">
+                            <span class="font-medium">{{ log.operator.get_full_name|default:log.operator.username }}</span>
+                            <span class="text-slate-400 text-xs lg:text-sm">{{ log.action }}</span>
+                        </p>
+                        <span class="text-xs text-slate-500 flex-shrink-0">{{ log.created_at|date:"m-d H:i" }}</span>
+                    </div>
+                    {% if log.comment %}
+                    <p class="text-xs text-slate-400 mt-1">{{ log.comment }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-history text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无操作日志</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}

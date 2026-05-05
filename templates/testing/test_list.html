@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}测试跟踪管理 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}测试跟踪管理{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in">
+    <!-- Filter Bar - 移动端优化 -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
+        <!-- 状态筛选 - 水平滚动 -->
+        <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 lg:mx-0 lg:px-0 scrollbar-hide">
+            <a href="?" class="px-3 py-2 rounded-lg {% if not request.GET.status %}bg-blue-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-xs lg:text-sm font-medium whitespace-nowrap flex-shrink-0">全部</a>
+            {% for value, label in status_choices %}
+            <a href="?status={{ value }}" class="px-3 py-2 rounded-lg {% if request.GET.status == value %}bg-blue-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-xs lg:text-sm font-medium whitespace-nowrap flex-shrink-0">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <!-- 搜索和新建 -->
+        <div class="flex gap-2">
+            <form method="get" class="flex gap-2 flex-1 lg:flex-none">
+                <input type="text" name="search" value="{{ request.GET.search }}" placeholder="搜索测试编号/客户..." 
+                       class="bg-slate-800 border border-slate-700 rounded-lg px-3 lg:px-4 py-2 text-sm focus:outline-none focus:border-blue-500 flex-1 lg:w-64">
+                <button type="submit" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700">
+                    <i class="fas fa-search"></i>
+                </button>
+            </form>
+            <a href="{% url 'testing:test_create' %}" class="px-3 lg:px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium whitespace-nowrap">
+                <i class="fas fa-plus mr-1 lg:mr-2"></i><span class="hidden lg:inline">新建测试</span><span class="lg:hidden">新建</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">方案名称</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">关联任务</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">测试内容</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">客户</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">样品数量</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">状态</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">跟踪人</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for test in tests %}
+                <tr class="table-row-hover border-l-2 border-transparent hover:border-blue-500 cursor-pointer"
+                    onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
+                    <td class="px-6 py-4 font-medium text-white whitespace-nowrap">{{ test.solution|default:'-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ test.fae_tasks.first.summary|default:'-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ test.get_test_content_display }}</td>
+                    <td class="px-6 py-4 font-medium text-white whitespace-nowrap">{{ test.customer.customer_code }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="text-green-400">{{ test.passed_samples }}</span> /
+                        <span class="text-white">{{ test.total_samples }}</span> /
+                        <span class="text-red-400">{{ test.abnormal_samples_count }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 rounded text-xs {% if test.status == 'completed' %}status-resolved{% elif test.status == 'in_progress' %}status-processing{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                            {{ test.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ test.tracker.get_full_name|default:test.tracker.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4"></i>
+                        <p>暂无测试项</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div class="lg:hidden space-y-3">
+        {% for test in tests %}
+        <a href="{% url 'testing:test_detail' test.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-blue-500/30 transition-all active:scale-98">
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-white text-sm font-medium">{{ test.solution|default:'-' }}</span>
+                <span class="px-2 py-1 rounded text-xs {% if test.status == 'completed' %}status-resolved{% elif test.status == 'in_progress' %}status-processing{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">{{ test.get_status_display }}</span>
+            </div>
+            <div class="text-xs text-slate-400 mb-1">
+                {{ test.fae_tasks.first.summary|default:'-' }} <span class="text-slate-600">-</span> {{ test.customer.customer_code }}
+            </div>
+            <div class="text-sm text-slate-400 mb-2">{{ test.get_test_content_display }}</div>
+            <div class="flex justify-between items-center text-xs">
+                <span class="text-slate-500">
+                    <span class="text-green-400">{{ test.passed_samples }}</span> /
+                    <span class="text-white">{{ test.total_samples }}</span> /
+                    <span class="text-red-400">{{ test.abnormal_samples_count }}</span>
+                </span>
+                <span class="text-slate-500">{{ test.tracker.get_full_name|default:test.tracker.username }}</span>
+            </div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4"></i>
+            <p>暂无测试项</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2 flex-wrap">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700"><i class="fas fa-chevron-left"></i></a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="px-3 py-2 rounded-lg bg-blue-600 text-white">{{ num }}</span>
+        {% else %}
+        <a href="?page={{ num }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700">{{ num }}</a>
+        {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700"><i class="fas fa-chevron-right"></i></a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .active\:scale-98:active {
+        transform: scale(0.98);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}编辑需求{% else %}新建需求{% endif %} - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}{% if object %}编辑需求{% else %}新建需求{% endif %}{% endblock %}
+
+{% block extra_js %}
+{{ form.media }}
+<script>
+// 延期风险变化时显示/隐藏延期原因字段
+document.addEventListener('DOMContentLoaded', function() {
+    const delayRiskSelect = document.querySelector('select[name="delay_risk"]');
+    const delayReasonField = document.getElementById('delayReasonField');
+    
+    if (delayRiskSelect && delayReasonField) {
+        delayRiskSelect.addEventListener('change', function() {
+            const risk = this.value;
+            if (risk === 'medium' || risk === 'high') {
+                delayReasonField.style.display = 'block';
+                delayReasonField.querySelector('label').innerHTML = '延期原因 <span class="text-red-500">*</span>';
+            } else {
+                delayReasonField.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto animate-slide-in">
+    <div class="glass rounded-xl p-6 border border-slate-700/50">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {% if request.GET.project or form.instance.project %}
+            <div class="hidden">{{ form.project }}</div>
+            {% endif %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 标题 -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm text-slate-400 mb-2">标题 <span class="text-red-500">*</span></label>
+                    <input type="text" name="title" required value="{{ form.title.value|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                           placeholder="请输入需求标题">
+                    {% if form.title.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.title.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 需求类型 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">需求类型 <span class="text-red-500">*</span></label>
+                    <select name="requirement_type" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择需求类型</option>
+                        {% for value, label in form.requirement_type.field.choices %}
+                        <option value="{{ value }}" {% if form.requirement_type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.requirement_type.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.requirement_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 优先级 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">优先级 <span class="text-red-500">*</span></label>
+                    <select name="priority" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择优先级</option>
+                        {% for value, label in form.priority.field.choices %}
+                        <option value="{{ value }}" {% if form.priority.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.priority.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.priority.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 状态 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">状态 <span class="text-red-500">*</span></label>
+                    <select name="status" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择状态</option>
+                        {% for value, label in form.status.field.choices %}
+                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.status.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.status.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 负责人 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">负责人 <span class="text-red-500">*</span></label>
+                    <select name="assignee" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择负责人</option>
+                        {% for user in form.assignee.field.queryset %}
+                        <option value="{{ user.pk }}" {% if form.assignee.value|stringformat:"s" == user.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ user.get_full_name|default:user.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.assignee.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.assignee.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 汇报日期 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">汇报日期 <span class="text-red-500">*</span></label>
+                    <input type="date" name="report_date" required value="{{ form.report_date.value|date:'Y-m-d'|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                    {% if form.report_date.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.report_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Jira编号 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Jira编号</label>
+                    <input type="text" name="jira_number" value="{{ form.jira_number.value|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                           placeholder="例如: PROJ-123">
+                    {% if form.jira_number.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.jira_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 开始时间 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">开始时间</label>
+                    <input type="date" name="start_date" value="{{ form.start_date.value|date:'Y-m-d'|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                    {% if form.start_date.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.start_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 截止时间 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">截止时间</label>
+                    <input type="date" name="end_date" value="{{ form.end_date.value|date:'Y-m-d'|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                    {% if form.end_date.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.end_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 延期风险 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">延期风险</label>
+                    <select name="delay_risk"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        {% for value, label in form.delay_risk.field.choices %}
+                        <option value="{{ value }}" {% if form.delay_risk.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.delay_risk.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.delay_risk.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 关联客户 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">关联客户</label>
+                    <select name="related_customer"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择（可选）</option>
+                        {% for customer in form.related_customer.field.queryset %}
+                        <option value="{{ customer.pk }}" {% if form.related_customer.value == customer.pk %}selected{% endif %}>
+                            {{ customer.customer_code }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.related_customer.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.related_customer.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- 关联FAE任务 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">关联FAE任务</label>
+                    <select name="related_fae_task"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择（可选）</option>
+                        {% for task in form.related_fae_task.field.queryset %}
+                        <option value="{{ task.pk }}" {% if form.related_fae_task.value == task.pk %}selected{% endif %}>
+                            {{ task.task_number }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.fae_task.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.fae_task.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 需求描述 -->
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">需求描述 <span class="text-red-500">*</span></label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="text-red-400 text-xs mt-1">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- 延期原因（当延期风险为中或高时显示） -->
+            <div id="delayReasonField" {% if form.delay_risk.value != 'medium' and form.delay_risk.value != 'high' %}style="display: none;"{% endif %}>
+                <label class="block text-sm text-slate-400 mb-2">延期原因 {% if form.delay_risk.value == 'medium' or form.delay_risk.value == 'high' %}<span class="text-red-500">*</span>{% endif %}</label>
+                {{ form.delay_reason }}
+                {% if form.delay_reason.errors %}
+                <p class="text-red-400 text-xs mt-1">{{ form.delay_reason.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                <a href="{% url 'rd_requirement:requirement_list' %}" class="px-6 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors">
+                    取消
+                </a>
+                <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-lg shadow-blue-600/20">
+                    {% if object %}保存修改{% else %}创建需求{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

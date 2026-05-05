@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}提交审核 - {{ task.task_number }}{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.0/classic/ckeditor.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto animate-slide-in">
+    <!-- 页面标题 -->
+    <div class="flex items-center gap-4 mb-6">
+        <a href="{% url 'fae:task_detail' task.pk %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">提交审核</h2>
+    </div>
+
+    <!-- 信息卡片 -->
+    <div class="glass rounded-xl p-6 border border-slate-700/50 mb-6">
+        <h3 class="font-semibold text-white mb-4">任务信息</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <span class="text-slate-400">任务编号:</span>
+                <span class="text-white mono ml-2">{{ task.task_number }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400">当前状态:</span>
+                <span class="text-white ml-2">{{ task.get_status_display }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400">目标状态:</span>
+                <span class="text-yellow-400 ml-2">{{ new_status_display }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务结论表单 -->
+    <form method="post" class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        {% csrf_token %}
+        <input type="hidden" name="status" value="{{ new_status }}">
+        
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-2">任务结论 <span class="text-red-400">*</span></h3>
+            <p class="text-sm text-slate-400">请详细描述任务执行结果、问题分析及解决方案</p>
+        </div>
+        
+        <div class="p-6 border-b border-slate-800">
+            <textarea name="result" id="result_editor" rows="10" 
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
+                placeholder="请输入任务结论..."></textarea>
+        </div>
+        
+        <div class="p-6 flex justify-end gap-3">
+            <a href="{% url 'fae:task_detail' task.pk %}" 
+                class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                取消
+            </a>
+            <button type="submit" 
+                class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-lg shadow-blue-600/20">
+                提交审核
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // 初始化 CKEditor5
+    ClassicEditor
+        .create(document.querySelector('#result_editor'), {
+            toolbar: ['heading', '|', 'bold', 'italic', 'underline', '|', 
+                     'bulletedList', 'numberedList', '|', 
+                     'link', '|', 'undo', 'redo'],
+            height: '300px'
+        })
+        .catch(error => {
+            console.error(error);
+        });
+</script>
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ test.test_number }} - 测试详情{% endblock %}
+{% block page_title %}测试详情{% endblock %}
+
+{% block extra_js %}
+{{ comment_form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in">
+    <!-- Test Header -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-3 lg:gap-0 mb-4">
+            <div>
+                <div class="flex flex-wrap items-center gap-2 lg:gap-3 mb-2">
+                    <span class="mono text-blue-400 text-base lg:text-lg">{{ test.test_number }}</span>
+                    <span class="px-2 py-1 rounded text-xs {% if test.status == 'completed' %}status-resolved{% elif test.status == 'in_progress' %}status-processing{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                        {{ test.get_status_display }}
+                    </span>
+                </div>
+                <h2 class="text-lg lg:text-xl font-bold text-white">{{ test.get_test_content_display }}</h2>
+            </div>
+            <div class="flex gap-2">
+                <a href="{% url 'abnormal:abnormal_create' %}?test_item={{ test.pk }}" class="px-3 lg:px-4 py-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 text-sm">
+                    <i class="fas fa-exclamation-triangle mr-1 lg:mr-2"></i><span class="hidden lg:inline">创建异常样品</span>
+                </a>
+                <a href="{% url 'testing:test_update' test.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm">
+                    <i class="fas fa-edit mr-1 lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mt-4 lg:mt-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">所属客户</p>
+                <p class="text-white text-sm lg:text-base">{{ test.customer.customer_code }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">跟踪人</p>
+                <p class="text-white text-sm lg:text-base">{{ test.tracker.get_full_name|default:test.tracker.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">开始日期</p>
+                <p class="text-white text-sm lg:text-base">{{ test.start_date|date:"Y-m-d H:i"|default:"--" }}</p>
+            </div>
+            <div class="col-span-2 lg:col-span-1">
+                <p class="text-xs text-slate-500 mb-1">结束日期</p>
+                <p class="text-white text-sm lg:text-base">{{ test.end_date|date:"Y-m-d H:i"|default:"--" }}</p>
+            </div>
+        </div>
+
+        {% if test.solution %}
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-xs text-slate-500 mb-1">测试方案</p>
+            <a href="{% url 'solution:solution_detail' test.solution.pk %}" class="text-blue-400 hover:text-blue-300 mono text-sm">
+                {{ test.solution.solution_number }}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Sample Statistics -->
+    <div class="grid grid-cols-3 gap-3 lg:gap-6">
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
+            <p class="text-xl lg:text-3xl font-bold text-white">{{ test.total_samples }}</p>
+            <p class="text-xs lg:text-sm text-slate-400 mt-1">样品总数</p>
+        </div>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
+            <p class="text-xl lg:text-3xl font-bold text-green-400">{{ test.passed_samples }}</p>
+            <p class="text-xs lg:text-sm text-slate-400 mt-1">通过数量</p>
+        </div>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
+            <p class="text-xl lg:text-3xl font-bold text-red-400">{{ test.abnormal_samples_count }}</p>
+            <p class="text-xs lg:text-sm text-slate-400 mt-1">异常数量</p>
+        </div>
+    </div>
+
+    <!-- Test Conclusion -->
+    <!-- Abnormal Samples -->
+    {% if abnormal_relations %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">关联异常样品</h3>
+        <div class="space-y-2 lg:space-y-3">
+            {% for relation in abnormal_relations %}
+            <div class="flex items-center gap-3 lg:gap-4 p-2 lg:p-3 rounded-lg bg-slate-900/50">
+                <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
+                <div class="flex-1 min-w-0">
+                    <a href="{% url 'abnormal:abnormal_detail' relation.abnormal_sample.pk %}" class="text-blue-400 hover:text-blue-300 mono text-sm truncate block">
+                        {{ relation.abnormal_sample.sample_number }}
+                    </a>
+                    <p class="text-xs text-slate-400">{{ relation.abnormal_sample.customer.customer_code }}</p>
+                </div>
+                <span class="px-2 py-1 rounded text-xs {% if relation.abnormal_sample.status == 'resolved' %}status-resolved{% elif relation.abnormal_sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
+                    {{ relation.abnormal_sample.get_status_display }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 评论区域 - 移动端优化 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="text-base lg:text-lg font-semibold text-white mb-4 lg:mb-6 flex items-center gap-2">
+            <i class="fas fa-comments text-slate-400"></i>
+            评论
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ test.comments.count }}</span>
+        </h3>
+
+        <!-- 评论列表 -->
+        <div class="space-y-3 lg:space-y-4 mb-4 lg:mb-6">
+            {% for comment in test.comments.all %}
+            <div class="flex gap-3 lg:gap-4 p-3 lg:p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                {% if comment.author.avatar %}
+                <img src="{{ comment.author.avatar.url }}" alt="头像" class="w-8 h-8 lg:w-10 lg:h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs lg:text-sm flex-shrink-0">
+                    {{ comment.author.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between mb-1 lg:mb-2">
+                        <div class="flex items-center gap-2 lg:gap-3">
+                            <span class="font-medium text-white text-sm">{{ comment.author.get_full_name|default:comment.author.username }}</span>
+                            <span class="text-xs text-slate-500">{{ comment.created_at|date:"m-d H:i" }}</span>
+                        </div>
+                        {% if comment.author == request.user %}
+                        <form action="{% url 'testing:delete_comment' comment.pk %}" method="post" class="inline" onsubmit="return confirm('确定要删除这条评论吗？');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-slate-500 hover:text-red-400 text-xs transition-colors" title="删除评论">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div class="text-slate-300 leading-relaxed rich-text-content text-sm">{{ comment.content|safe }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-comment-slash text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无评论，来发表第一条评论吧</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 添加评论表单 -->
+        <form action="{% url 'testing:add_comment' test.pk %}" method="post" class="mt-4 lg:mt-6" novalidate>
+            {% csrf_token %}
+            <!-- 评论编辑器（移动端和电脑端共用一个） -->
+            {{ comment_form.content }}
+            <!-- 手机端布局 -->
+            <div class="lg:hidden">
+                <div class="flex items-center gap-2 mb-2">
+                    {% if request.user.avatar %}
+                    <img src="{{ request.user.avatar.url }}" alt="头像" class="w-8 h-8 rounded-full object-cover border border-slate-600">
+                    {% else %}
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-xs">
+                        {{ request.user.username|first|upper }}
+                    </div>
+                    {% endif %}
+                    <span class="text-sm text-slate-400">{{ request.user.get_full_name|default:request.user.username }}</span>
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm flex items-center gap-2">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                        <span>发表</span>
+                    </button>
+                </div>
+            </div>
+            <!-- 电脑端布局 -->
+            <div class="hidden lg:flex gap-4 mt-4">
+                {% if request.user.avatar %}
+                <img src="{{ request.user.avatar.url }}" alt="头像" class="w-10 h-10 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    {{ request.user.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1">
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2 text-sm">
+                            <i class="fas fa-paper-plane text-xs"></i>
+                            <span>发表评论</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base flex items-center gap-2">
+            <i class="fas fa-history text-slate-400"></i>
+            操作日志
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ test.logs.count }}</span>
+        </h3>
+        <div class="space-y-3">
+            {% for log in test.logs.all %}
+            <div class="flex gap-3 lg:gap-4 p-2 lg:p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+                {% if log.operator.avatar %}
+                <img src="{{ log.operator.avatar.url }}" alt="头像" class="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover border border-slate-600 flex-shrink-0">
+                {% else %}
+                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs flex-shrink-0">
+                    {{ log.operator.username|first|upper }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-1">
+                        <p class="text-sm text-white">
+                            <span class="font-medium">{{ log.operator.get_full_name|default:log.operator.username }}</span>
+                            <span class="text-slate-400 text-xs lg:text-sm">{{ log.action }}</span>
+                        </p>
+                        <span class="text-xs text-slate-500 flex-shrink-0">{{ log.created_at|date:"m-d H:i" }}</span>
+                    </div>
+                    {% if log.comment %}
+                    <p class="text-xs text-slate-400 mt-1">{{ log.comment }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-8 text-slate-500">
+                <i class="fas fa-history text-3xl mb-3 opacity-50"></i>
+                <p class="text-sm">暂无操作日志</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}

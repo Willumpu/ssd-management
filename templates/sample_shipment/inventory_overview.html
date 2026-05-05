@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load shipment_extras %}
+
+{% block title %}样品物料库存总览 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}样品物料库存总览{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 页面标题和操作栏 -->
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <h2 class="text-xl font-semibold text-white">库存总览</h2>
+        <div class="flex gap-2">
+            <a href="{% url 'sample_shipment:material_create' %}" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20">
+                <i class="fas fa-plus"></i>
+                <span>新建物料</span>
+            </a>
+            <a href="{% url 'sample_shipment:transfer_create' %}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20">
+                <i class="fas fa-exchange-alt"></i>
+                <span>新建调拨</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 快捷链接 -->
+    <div class="flex flex-wrap gap-2">
+        <a href="{% url 'sample_shipment:material_list' %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-all border border-slate-700">
+            <i class="fas fa-boxes mr-2"></i>物料档案
+        </a>
+        <a href="{% url 'sample_shipment:transfer_list' %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-all border border-slate-700">
+            <i class="fas fa-history mr-2"></i>流转记录
+        </a>
+    </div>
+
+    <!-- 仓库卡片 -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {% for stat in warehouse_stats %}
+        <a href="?warehouse={{ stat.warehouse.pk }}" class="glass rounded-xl p-4 border {% if current_warehouse and current_warehouse.pk == stat.warehouse.pk %}border-amber-500{% else %}border-slate-700/50 hover:border-slate-600{% endif %} transition-all">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center {% if stat.warehouse.warehouse_type == 'company' %}bg-blue-600/20 text-blue-400{% else %}bg-green-600/20 text-green-400{% endif %}">
+                    <i class="fas {% if stat.warehouse.warehouse_type == 'company' %}fa-building{% else %}fa-user-tie{% endif %} text-xs"></i>
+                </div>
+                <span class="text-sm font-medium text-white truncate">{{ stat.warehouse.name }}</span>
+            </div>
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stat.total_qty }}</p>
+                    <p class="text-xs text-slate-400">{{ stat.material_count }} 种物料</p>
+                </div>
+                <i class="fas fa-warehouse text-slate-700 text-lg"></i>
+            </div>
+        </a>
+        {% empty %}
+        <div class="col-span-full text-center py-8 text-slate-500 glass rounded-xl border border-slate-700/50">
+            <p>暂无仓库数据</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 选中仓库的库存明细 -->
+    {% if current_warehouse %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-warehouse text-slate-400 text-sm"></i>
+                {{ current_warehouse.name }}
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ stocks|length }} 种 / {{ stocks|sum_quantities }} 件</span>
+            </h3>
+        </div>
+        {% if stocks %}
+        <div class="hidden lg:block">
+            <table class="w-full text-left">
+                <thead class="bg-slate-900/30 text-slate-400 text-xs uppercase">
+                    <tr>
+                        <th class="px-6 py-3 font-medium">物料编号</th>
+                        <th class="px-6 py-3 font-medium">物料名称</th>
+                        <th class="px-6 py-3 font-medium">类别</th>
+                        <th class="px-6 py-3 font-medium">归属方</th>
+                        <th class="px-6 py-3 font-medium text-right">库存数量</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800 text-sm">
+                    {% for stock in stocks %}
+                    <tr class="table-row-hover border-l-2 border-transparent hover:border-amber-500 cursor-pointer"
+                        onclick="window.location.href='{% url 'sample_shipment:material_detail' stock.material.pk %}'">
+                        <td class="px-6 py-3 mono text-amber-400">{{ stock.material.material_number }}</td>
+                        <td class="px-6 py-3 text-white font-medium">{{ stock.material.name }}</td>
+                        <td class="px-6 py-3">
+                            <span class="px-2 py-1 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ stock.material.get_category_display }}</span>
+                        </td>
+                        <td class="px-6 py-3 text-slate-400">{{ stock.material.related_customer.customer_code|default:'公司自有' }}</td>
+                        <td class="px-6 py-3 text-right">
+                            <span class="text-lg font-bold text-white">{{ stock.quantity }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- 移动端 -->
+        <div class="lg:hidden divide-y divide-slate-800">
+            {% for stock in stocks %}
+            <a href="{% url 'sample_shipment:material_detail' stock.material.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ stock.material.name }}</div>
+                        <div class="text-xs text-slate-500 mono mt-0.5">{{ stock.material.material_number }}</div>
+                    </div>
+                    <div class="text-lg font-bold text-white">{{ stock.quantity }}</div>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ stock.material.get_category_display }}</span>
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-400">{{ stock.material.related_customer.customer_code|default:'公司自有' }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12 text-slate-500">
+            <i class="fas fa-box-open text-4xl mb-3 block"></i>
+            <p>该仓库暂无库存</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-slate-500 glass rounded-xl border border-slate-700/50">
+        <i class="fas fa-warehouse text-4xl mb-3 block"></i>
+        <p>请点击上方仓库卡片查看库存明细</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

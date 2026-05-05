@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}用户设置 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}用户设置{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto animate-slide-in">
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <!-- 头像设置 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-user-circle text-blue-400"></i>
+                头像设置
+            </h3>
+            <div class="flex items-center gap-6">
+                <div class="relative">
+                    {% if user.avatar %}
+                    <img src="{{ user.avatar.url }}" alt="头像" class="w-24 h-24 rounded-full object-cover border-2 border-blue-500/50">
+                    {% else %}
+                    <div class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-3xl font-bold text-white border-2 border-blue-500/50">
+                        {{ user.username|first|upper }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex-1">
+                    <form method="post" enctype="multipart/form-data" class="space-y-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="change_avatar">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">上传新头像</label>
+                            <input type="file" name="avatar" accept="image/*"
+                                   class="block w-full text-sm text-slate-400
+                                          file:mr-4 file:py-2 file:px-4
+                                          file:rounded-lg file:border-0
+                                          file:text-sm file:font-medium
+                                          file:bg-blue-600 file:text-white
+                                          hover:file:bg-blue-500
+                                          file:cursor-pointer">
+                            <p class="text-xs text-slate-500 mt-1">支持 JPG、PNG 格式，建议尺寸 200x200 像素</p>
+                        </div>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors">
+                            更新头像
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 密码修改 -->
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-lock text-green-400"></i>
+                修改密码
+            </h3>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="change_password">
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">当前密码</label>
+                    <input type="password" name="old_password" required
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">新密码</label>
+                    <input type="password" name="new_password" required minlength="6"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                    <p class="text-xs text-slate-500 mt-1">密码长度至少6位</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">确认新密码</label>
+                    <input type="password" name="confirm_password" required minlength="6"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div class="pt-2">
+                    <button type="submit" class="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors">
+                        修改密码
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 用户信息 -->
+        <div class="p-6 border-t border-slate-800 bg-slate-900/30">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <i class="fas fa-info-circle text-slate-400"></i>
+                基本信息
+            </h3>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-slate-500">用户名</span>
+                    <p class="text-white font-medium">{{ user.username }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500">姓名</span>
+                    <p class="text-white font-medium">{{ user.get_full_name|default:"未设置" }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500">角色</span>
+                    <p class="text-white font-medium">{{ user.get_role_display }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500">邮箱</span>
+                    <p class="text-white font-medium">{{ user.email|default:"未设置" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

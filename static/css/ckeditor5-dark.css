@@ -1,0 +1,248 @@
+/* CKEditor 5 暗色主题 - 适配 SSD 管理平台风格 */
+
+/* 编辑器整体背景 */
+.ck.ck-editor__main > .ck-editor__editable {
+    background-color: #1e293b !important;  /* slate-800 */
+    color: #e2e8f0 !important;  /* slate-200 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 编辑器获得焦点时的边框 */
+.ck.ck-editor__main > .ck-editor__editable.ck-focused {
+    border-color: #3b82f6 !important;  /* blue-500 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* 工具栏背景 */
+.ck.ck-toolbar {
+    background-color: #0f172a !important;  /* slate-900 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 工具栏按钮 */
+.ck.ck-toolbar .ck.ck-button {
+    color: #cbd5e1 !important;  /* slate-300 */
+    background-color: transparent !important;
+}
+
+/* 工具栏按钮悬停 */
+.ck.ck-toolbar .ck.ck-button:hover {
+    background-color: #1e293b !important;  /* slate-800 */
+    color: #ffffff !important;
+}
+
+/* 工具栏按钮激活/选中状态 */
+.ck.ck-toolbar .ck.ck-button.ck-on {
+    background-color: #3b82f6 !important;  /* blue-500 */
+    color: #ffffff !important;
+}
+
+/* 下拉菜单背景 */
+.ck.ck-dropdown__panel {
+    background-color: #1e293b !important;  /* slate-800 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 下拉菜单项 */
+.ck.ck-list__item .ck-button {
+    color: #e2e8f0 !important;  /* slate-200 */
+    background-color: transparent !important;
+}
+
+.ck.ck-list__item .ck-button:hover {
+    background-color: #334155 !important;  /* slate-700 */
+}
+
+/* 输入框 */
+.ck.ck-input {
+    background-color: #0f172a !important;  /* slate-900 */
+    color: #e2e8f0 !important;  /* slate-200 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 标签/标题 */
+.ck.ck-labeled-field__label {
+    color: #94a3b8 !important;  /* slate-400 */
+    background-color: #1e293b !important;  /* slate-800 */
+}
+
+/* 对话框背景 */
+.ck.ck-dialog .ck.ck-dialog__panel {
+    background-color: #1e293b !important;  /* slate-800 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 对话框标题 */
+.ck.ck-dialog .ck.ck-dialog__title {
+    color: #e2e8f0 !important;  /* slate-200 */
+}
+
+/* 对话框按钮 */
+.ck.ck-dialog .ck.ck-button {
+    background-color: #3b82f6 !important;  /* blue-500 */
+    color: #ffffff !important;
+}
+
+.ck.ck-dialog .ck.ck-button:hover {
+    background-color: #2563eb !important;  /* blue-600 */
+}
+
+/* 分隔线 */
+.ck.ck-toolbar__separator {
+    background-color: #334155 !important;  /* slate-700 */
+}
+
+/* 图片上传区域 */
+.ck.ck-file-dialog-button {
+    color: #e2e8f0 !important;
+}
+
+/* 气泡/提示 */
+.ck.ck-balloon-panel {
+    background-color: #1e293b !important;  /* slate-800 */
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 链接输入框 */
+.ck.ck-link-form,
+.ck.ck-link-actions {
+    background-color: #1e293b !important;  /* slate-800 */
+}
+
+/* 表格属性对话框 */
+.ck.ck-table-properties,
+.ck.ck-table-cell-properties {
+    background-color: #1e293b !important;
+}
+
+/* 颜色选择器 */
+.ck.ck-color-selector {
+    background-color: #1e293b !important;
+}
+
+/* 代码块背景 */
+.ck-content pre {
+    background-color: #0f172a !important;  /* slate-900 */
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+}
+
+/* 引用块样式 */
+.ck-content blockquote {
+    border-left-color: #3b82f6 !important;  /* blue-500 */
+    background-color: rgba(59, 130, 246, 0.1) !important;
+    color: #e2e8f0 !important;
+}
+
+/* 水平线 */
+.ck-content hr {
+    border-color: #334155 !important;  /* slate-700 */
+}
+
+/* 链接颜色 */
+.ck-content a {
+    color: #60a5fa !important;  /* blue-400 */
+}
+
+.ck-content a:hover {
+    color: #93c5fd !important;  /* blue-300 */
+}
+
+/* 选中文字的背景色 */
+.ck.ck-editor__editable ::selection {
+    background-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* 工具提示 */
+.ck.ck-tooltip .ck-tooltip__text {
+    background-color: #0f172a !important;  /* slate-900 */
+    color: #e2e8f0 !important;
+}
+
+/* 工具提示箭头 */
+.ck.ck-tooltip .ck-tooltip__text::after {
+    border-color: #0f172a transparent transparent transparent !important;
+}
+
+/* 编辑器占位符文字 */
+.ck.ck-placeholder::before {
+    color: #64748b !important;  /* slate-500 */
+}
+
+/* ============================================
+   富文本内容展示样式（用于详情页面）
+   ============================================ */
+
+/* 表格基础样式 */
+.prose table,
+.ck-content table,
+.rich-text-content table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 1rem 0 !important;
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+}
+
+/* 表格单元格 */
+.prose table th,
+.prose table td,
+.ck-content table th,
+.ck-content table td,
+.rich-text-content table th,
+.rich-text-content table td {
+    border: 1px solid #334155 !important;  /* slate-700 */
+    padding: 0.75rem 1rem !important;
+    text-align: left !important;
+    vertical-align: top !important;
+}
+
+/* 表头样式 */
+.prose table th,
+.ck-content table th,
+.rich-text-content table th {
+    background-color: #1e293b !important;  /* slate-800 */
+    color: #e2e8f0 !important;  /* slate-200 */
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+/* 表格行斑马纹 */
+.prose table tbody tr:nth-child(even),
+.ck-content table tbody tr:nth-child(even),
+.rich-text-content table tbody tr:nth-child(even) {
+    background-color: rgba(30, 41, 59, 0.5) !important;  /* slate-800 with opacity */
+}
+
+.prose table tbody tr:nth-child(odd),
+.ck-content table tbody tr:nth-child(odd),
+.rich-text-content table tbody tr:nth-child(odd) {
+    background-color: transparent !important;
+}
+
+/* 表格行悬停效果 */
+.prose table tbody tr:hover,
+.ck-content table tbody tr:hover,
+.rich-text-content table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.1) !important;  /* blue-500 with opacity */
+}
+
+/* 表格内文字颜色 */
+.prose table td,
+.ck-content table td,
+.rich-text-content table td {
+    color: #cbd5e1 !important;  /* slate-300 */
+}
+
+/* 表格标题（figcaption） */
+.prose table figcaption,
+.ck-content .table figcaption,
+.rich-text-content .table figcaption {
+    color: #94a3b8 !important;  /* slate-400 */
+    font-size: 0.875rem;
+    text-align: center;
+    margin-top: 0.5rem;
+    caption-side: bottom;
+}

@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}项目管理 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}项目管理{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <div class="flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-white">项目列表</h2>
+        <a href="{% url 'project:project_create' %}" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20">
+            <i class="fas fa-plus"></i>
+            <span>新建项目</span>
+        </a>
+    </div>
+
+    <!-- 筛选和搜索 -->
+    <div class="glass rounded-xl p-4 border border-slate-700/50">
+        <div class="flex flex-wrap gap-4 justify-between items-center">
+            <div class="flex flex-wrap gap-2">
+                <a href="?status=" class="px-3 py-2 rounded-lg {% if not current_status %}bg-amber-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    全部
+                </a>
+                {% for value, label in status_choices %}
+                <a href="?status={{ value }}" class="px-3 py-2 rounded-lg {% if current_status == value %}bg-amber-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    {{ label }}
+                </a>
+                {% endfor %}
+            </div>
+            <form method="get" class="flex gap-2">
+                <input type="hidden" name="status" value="{{ current_status }}">
+                <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="搜索编号/名称..."
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-56 placeholder-slate-500">
+                <button type="submit" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+                {% if search_query %}
+                <a href="?status={{ current_status }}" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- 桌面端列表 -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium">项目编号</th>
+                    <th class="px-6 py-4 font-medium">项目名称</th>
+                    <th class="px-6 py-4 font-medium">关联客户</th>
+                    <th class="px-6 py-4 font-medium">状态</th>
+                    <th class="px-6 py-4 font-medium text-right">关联条目</th>
+                    <th class="px-6 py-4 font-medium">创建时间</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for project in projects %}
+                <tr class="table-row-hover border-l-2 border-transparent hover:border-amber-500 cursor-pointer"
+                    onclick="window.location.href='{% url 'project:project_detail' project.pk %}'">
+                    <td class="px-6 py-4 mono text-amber-400">{{ project.project_number }}</td>
+                    <td class="px-6 py-4 text-white font-medium">{{ project.name }}</td>
+                    <td class="px-6 py-4 text-slate-400">{{ project.customer.customer_code|default:'-' }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded text-xs border
+                            {% if project.status == 'active' %}bg-green-500/20 text-green-400 border-green-500/30{% elif project.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
+                            {{ project.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <span class="text-white font-bold">{{ project.get_total_items }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-slate-500">{{ project.created_at|date:'Y-m-d' }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                        <p>暂无项目</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 移动端 -->
+    <div class="lg:hidden space-y-3">
+        {% for project in projects %}
+        <a href="{% url 'project:project_detail' project.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-amber-500/30 transition-all">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="text-sm text-white font-medium">{{ project.name }}</div>
+                    <div class="text-xs text-slate-500 mono mt-0.5">{{ project.project_number }}</div>
+                </div>
+                <span class="px-2 py-0.5 rounded text-xs border
+                    {% if project.status == 'active' %}bg-green-500/20 text-green-400 border-green-500/30{% elif project.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
+                    {{ project.get_status_display }}
+                </span>
+            </div>
+            <div class="flex justify-between mt-2 text-xs text-slate-400">
+                <span>{{ project.customer.customer_code|default:'无关联客户' }}</span>
+                <span>{{ project.get_total_items }} 个条目</span>
+            </div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4 block"></i>
+            <p>暂无项目</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 rounded-lg bg-amber-600 text-white">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

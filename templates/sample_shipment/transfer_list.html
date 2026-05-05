@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}流转记录 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}物料流转记录{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <div class="flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-white">流转记录台账</h2>
+        <a href="{% url 'sample_shipment:transfer_create' %}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20">
+            <i class="fas fa-plus"></i>
+            <span>新建调拨</span>
+        </a>
+    </div>
+
+    <!-- 筛选和搜索 -->
+    <div class="glass rounded-xl p-4 border border-slate-700/50">
+        <div class="flex flex-wrap gap-4 justify-between items-center">
+            <div class="flex flex-wrap gap-2">
+                <a href="?warehouse=" class="px-3 py-2 rounded-lg {% if not current_warehouse %}bg-blue-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    全部
+                </a>
+                {% for wh in warehouses %}
+                <a href="?warehouse={{ wh.pk }}" class="px-3 py-2 rounded-lg {% if current_warehouse == wh.pk|stringformat:'s' %}bg-blue-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    {{ wh.name }}
+                </a>
+                {% endfor %}
+            </div>
+            <form method="get" class="flex gap-2">
+                <input type="hidden" name="warehouse" value="{{ current_warehouse }}">
+                <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="搜索编号/物料..."
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 w-56 placeholder-slate-500">
+                <button type="submit" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+                {% if search_query %}
+                <a href="?warehouse={{ current_warehouse }}" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- 桌面端列表 -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium">调拨编号</th>
+                    <th class="px-6 py-4 font-medium">物料</th>
+                    <th class="px-6 py-4 font-medium">方向</th>
+                    <th class="px-6 py-4 font-medium text-right">数量</th>
+                    <th class="px-6 py-4 font-medium">调拨日期</th>
+                    <th class="px-6 py-4 font-medium">操作人</th>
+                    <th class="px-6 py-4 font-medium">物流信息</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for transfer in transfers %}
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                    <td class="px-6 py-4 mono text-amber-400">{{ transfer.transfer_number }}</td>
+                    <td class="px-6 py-4">
+                        <div class="text-white font-medium">{{ transfer.material.name }}</div>
+                        <div class="text-xs text-slate-500 mono">{{ transfer.material.material_number }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="text-slate-400">{{ transfer.from_warehouse.name }}</span>
+                        <i class="fas fa-arrow-right text-slate-600 mx-1 text-xs"></i>
+                        <span class="text-white">{{ transfer.to_warehouse.name }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right font-bold text-white">{{ transfer.quantity }}</td>
+                    <td class="px-6 py-4 text-slate-400">{{ transfer.transfer_date|date:'Y-m-d H:i' }}</td>
+                    <td class="px-6 py-4 text-slate-400">{{ transfer.operator.get_full_name|default:transfer.operator.username }}</td>
+                    <td class="px-6 py-4 text-slate-500">{{ transfer.tracking_info|default:'-' }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                        <p>暂无流转记录</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 移动端 -->
+    <div class="lg:hidden space-y-3">
+        {% for transfer in transfers %}
+        <div class="glass rounded-xl p-4 border border-slate-700/50">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="text-sm text-white font-medium">{{ transfer.material.name }}</div>
+                    <div class="text-xs text-slate-500 mono">{{ transfer.transfer_number }}</div>
+                </div>
+                <div class="font-bold text-white">× {{ transfer.quantity }}</div>
+            </div>
+            <div class="text-sm mt-2">
+                <span class="text-slate-400">{{ transfer.from_warehouse.name }}</span>
+                <i class="fas fa-arrow-right text-slate-600 mx-1 text-xs"></i>
+                <span class="text-white">{{ transfer.to_warehouse.name }}</span>
+            </div>
+            <div class="text-xs text-slate-500 mt-1">{{ transfer.transfer_date|date:'Y-m-d H:i' }} · {{ transfer.operator.get_full_name|default:transfer.operator.username }}</div>
+            {% if transfer.tracking_info %}
+            <div class="text-xs text-slate-600 mt-1">物流: {{ transfer.tracking_info }}</div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="text-center py-12 text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4 block"></i>
+            <p>暂无流转记录</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 分页 -->
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_warehouse %}&warehouse={{ current_warehouse }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+        <span class="px-4 py-2 rounded-lg bg-blue-600 text-white">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_warehouse %}&warehouse={{ current_warehouse }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

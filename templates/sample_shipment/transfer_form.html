@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}新建调拨 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}新建物料调拨{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in max-w-3xl">
+    <div class="flex items-center gap-4">
+        <a href="{% url 'sample_shipment:transfer_list' %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">新建物料调拨</h2>
+    </div>
+
+    <form method="post" class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        {% csrf_token %}
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">调拨信息</h3>
+        </div>
+        <div class="p-6 space-y-6">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">物料 <span class="text-red-400">*</span></label>
+                {{ form.material }}
+                {% if form.material.errors %}
+                <p class="text-red-400 text-xs mt-1">{{ form.material.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">来源仓库 <span class="text-red-400">*</span></label>
+                    {{ form.from_warehouse }}
+                    {% if form.from_warehouse.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.from_warehouse.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">目标仓库 <span class="text-red-400">*</span></label>
+                    {{ form.to_warehouse }}
+                    {% if form.to_warehouse.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.to_warehouse.errors.0 }}</p>
+                    {% endif %}
+                    {% if form.non_field_errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.non_field_errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">数量 <span class="text-red-400">*</span></label>
+                    {{ form.quantity }}
+                    {% if form.quantity.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.quantity.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">调拨日期 <span class="text-red-400">*</span></label>
+                    {{ form.transfer_date }}
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">物流信息 / 快递单号</label>
+                {{ form.tracking_info }}
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">备注</label>
+                {{ form.remark }}
+            </div>
+        </div>
+        <div class="p-6 border-t border-slate-800 flex justify-end gap-3">
+            <a href="{% url 'sample_shipment:transfer_list' %}" class="px-6 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700">
+                取消
+            </a>
+            <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2">
+                <i class="fas fa-save"></i>
+                <span>创建调拨记录</span>
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
