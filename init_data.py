@@ -29,10 +29,9 @@ def create_superuser():
 def create_fae_users():
     """创建FAE用户"""
     fae_data = [
-        {'username': 'fae01', 'name': '张工', 'role': 'fae'},
-        {'username': 'fae02', 'name': '李工', 'role': 'fae'},
-        {'username': 'fae03', 'name': '王工', 'role': 'fae'},
-        {'username': 'fae_leader', 'name': 'FAE主管', 'role': 'fae_leader'},
+        {'username': 'fae01', 'name': '李一帆', 'role': 'fae'},
+        {'username': 'fae02', 'name': '于岳勇', 'role': 'fae'},
+        {'username': 'fae_leader', 'name': '徐鑫雨', 'role': 'fae_leader'},
     ]
     
     for data in fae_data:
@@ -53,9 +52,9 @@ def create_fae_users():
 def create_rd_users():
     """创建研发用户"""
     rd_data = [
-        {'username': 'rd01', 'name': '陈工', 'role': 'rd'},
-        {'username': 'rd02', 'name': '刘工', 'role': 'rd'},
-        {'username': 'rd_leader', 'name': '研发主管', 'role': 'rd_leader'},
+        {'username': 'rd01', 'name': '董星辰', 'role': 'rd'},
+        {'username': 'rd02', 'name': '姜国勇', 'role': 'rd'},
+        {'username': 'rd03', 'name': '李宁', 'role': 'rd'},
     ]
     
     for data in rd_data:
@@ -94,7 +93,8 @@ def create_customers():
     customer_codes = [
         'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09',
         'A10', 'A11', 'A12', 'A13', 'A14', 'A15', 'A16', 'A17',
-        'A18', 'A19', 'A20', 'A21', 'A22', 'A23',
+        'A18', 'A19', 'A20', 'A21', 'A22', 'A23', 'A23', 'A23',
+        'C07', 'C15',
     ]
     
     for code in customer_codes:
@@ -108,16 +108,8 @@ def create_customers():
 def create_controller_models():
     """创建主控型号"""
     controllers = [
-        {'name': 'SM2268XT', 'description': '慧荣 PCIe 4.0 主控'},
-        {'name': 'SM2268XT2', 'description': '慧荣 PCIe 4.0 主控升级版'},
-        {'name': 'SM2262EN', 'description': '慧荣 PCIe 3.0 主控'},
-        {'name': 'SM2320', 'description': '慧荣 USB 3.2 主控'},
-        {'name': 'RTS5765', 'description': '瑞昱 PCIe 4.0 主控'},
-        {'name': 'RTS5766', 'description': '瑞昱 PCIe 4.0 主控升级版'},
-        {'name': 'PS5026-E26', 'description': '群联 PCIe 5.0 主控'},
-        {'name': 'PS5021-E21', 'description': '群联 PCIe 4.0 主控'},
-        {'name': 'IG5236', 'description': '英韧 PCIe 4.0 主控'},
-        {'name': 'MAP1602', 'description': '联芸 PCIe 4.0 主控'},
+        {'name': 'EBSS1032C', 'description': '本征SATA消费级主控'},
+        {'name': 'EBSS1032I', 'description': '本征SATA工业级主控'},
     ]
     
     for data in controllers:
@@ -135,16 +127,16 @@ def create_controller_models():
 def create_flash_models():
     """创建Flash型号"""
     flash_models = [
-        {'name': 'B27A', 'description': '铠侠 B27A'},
-        {'name': 'B27B', 'description': '铠侠 B27B'},
-        {'name': 'B47R', 'description': '铠侠 B47R'},
-        {'name': 'B58R', 'description': '铠侠 B58R'},
-        {'name': 'TAS', 'description': '东芝 TAS'},
-        {'name': 'TAS_PLUS', 'description': '东芝 TAS+'},
-        {'name': 'H27QDG', 'description': '海力士 H27QDG'},
-        {'name': 'H27TDG', 'description': '海力士 H27TDG'},
-        {'name': 'MT29F', 'description': '美光 MT29F'},
-        {'name': 'MT29F512', 'description': '美光 MT29F512'},
+        {'name': 'N38A', 'description': 'Intel'},
+        {'name': 'N38B', 'description': 'Intel'},
+        {'name': 'N4PA', 'description': 'Intel'},
+        {'name': 'B47T', 'description': 'Micron'},
+        {'name': 'N58R', 'description': 'TAS'},
+        {'name': '3DV9', 'description': 'HY'},
+        {'name': 'X4-9070', 'description': '长存'},
+        {'name': 'N69R', 'description': 'TAS'},
+        {'name': 'B16', 'description': 'Intel'},
+        {'name': 'B17', 'description': 'Intel'},
     ]
     
     for data in flash_models:
@@ -162,14 +154,14 @@ def create_flash_models():
 def create_pcb_models():
     """创建PCB型号"""
     pcb_models = [
-        {'name': 'PCB-2280-V1.0', 'description': '2280尺寸 V1.0'},
-        {'name': 'PCB-2280-V1.1', 'description': '2280尺寸 V1.1'},
-        {'name': 'PCB-2280-V2.0', 'description': '2280尺寸 V2.0'},
-        {'name': 'PCB-2242-V1.0', 'description': '2242尺寸 V1.0'},
-        {'name': 'PCB-2230-V1.0', 'description': '2230尺寸 V1.0'},
-        {'name': 'PCB-22110-V1.0', 'description': '22110尺寸 V1.0'},
-        {'name': 'PCB-UFD-V1.0', 'description': 'U盘专用 V1.0'},
-        {'name': 'PCB-CFE-V1.0', 'description': 'CFexpress专用 V1.0'},
+        {'name': 'SA2-A411', 'description': '2.5inch SATA'},
+        {'name': 'SA4-A412', 'description': '2.5inch SATA'},
+        {'name': 'SA4-B423', 'description': '2.5inch SATA'},
+        {'name': 'SA4-G411', 'description': '2.5inch SATA'},
+        {'name': 'SA6-G411', 'description': '2.5inch SATA'},
+        {'name': 'SC4-B421', 'description': 'M.2 2280'},
+        {'name': 'SSC3-A222', 'description': 'M.2 2280'},
+        {'name': 'SA8-C132B', 'description': '2.5inch SATA'},
     ]
     
     for data in pcb_models:
