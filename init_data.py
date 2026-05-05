@@ -91,42 +91,18 @@ def create_warehouse_user():
 
 def create_customers():
     """创建客户数据"""
-    customer_data = [
-        {'code': 'A02', 'name': '深圳科技A', 'contact': '张经理', 'phone': '13800138001'},
-        {'code': 'A03', 'name': '东莞电子B', 'contact': '李经理', 'phone': '13800138002'},
-        {'code': 'A04', 'name': '广州半导体C', 'contact': '王经理', 'phone': '13800138003'},
-        {'code': 'A05', 'name': '佛山存储D', 'contact': '陈经理', 'phone': '13800138004'},
-        {'code': 'A06', 'name': '中山模组E', 'contact': '刘经理', 'phone': '13800138005'},
-        {'code': 'A07', 'name': '珠海芯片F', 'contact': '黄经理', 'phone': '13800138006'},
-        {'code': 'A08', 'name': '惠州制造G', 'contact': '周经理', 'phone': '13800138007'},
-        {'code': 'A09', 'name': '江门数据H', 'contact': '吴经理', 'phone': '13800138008'},
-        {'code': 'A10', 'name': '汕头硬件I', 'contact': '郑经理', 'phone': '13800138009'},
-        {'code': 'A11', 'name': '湛江固态J', 'contact': '孙经理', 'phone': '13800138010'},
-        {'code': 'A12', 'name': '茂名闪存K', 'contact': '林经理', 'phone': '13800138011'},
-        {'code': 'A13', 'name': '肇庆存储L', 'contact': '何经理', 'phone': '13800138012'},
-        {'code': 'A14', 'name': '清远芯片M', 'contact': '高经理', 'phone': '13800138013'},
-        {'code': 'A15', 'name': '阳江模组N', 'contact': '马经理', 'phone': '13800138014'},
-        {'code': 'A16', 'name': '韶关硬件O', 'contact': '罗经理', 'phone': '13800138015'},
-        {'code': 'A17', 'name': '揭阳固态P', 'contact': '梁经理', 'phone': '13800138016'},
-        {'code': 'A18', 'name': '潮州闪存Q', 'contact': '郭经理', 'phone': '13800138017'},
-        {'code': 'A19', 'name': '汕尾存储R', 'contact': '宋经理', 'phone': '13800138018'},
-        {'code': 'A20', 'name': '河源芯片S', 'contact': '谢经理', 'phone': '13800138019'},
-        {'code': 'A21', 'name': '梅州模组T', 'contact': '韩经理', 'phone': '13800138020'},
-        {'code': 'A22', 'name': '惠州硬件U', 'contact': '冯经理', 'phone': '13800138021'},
-        {'code': 'A23', 'name': '东莞固态V', 'contact': '于经理', 'phone': '13800138022'},
+    customer_codes = [
+        'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09',
+        'A10', 'A11', 'A12', 'A13', 'A14', 'A15', 'A16', 'A17',
+        'A18', 'A19', 'A20', 'A21', 'A22', 'A23',
     ]
     
-    for data in customer_data:
-        if not Customer.objects.filter(customer_code=data['code']).exists():
-            Customer.objects.create(
-                customer_code=data['code'],
-                name=data['name'],
-                contact=data['contact'],
-                phone=data['phone']
-            )
-            print(f'[OK] 客户创建成功: {data["code"]} - {data["name"]}')
+    for code in customer_codes:
+        if not Customer.objects.filter(customer_code=code).exists():
+            Customer.objects.create(customer_code=code)
+            print(f'[OK] 客户创建成功: {code}')
         else:
-            print(f'[OK] 客户已存在: {data["code"]}')
+            print(f'[OK] 客户已存在: {code}')
 
 
 def create_controller_models():

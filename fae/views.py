@@ -472,7 +472,7 @@ class CustomerCreateView(LoginRequiredMixin, CreateView):
     """创建客户"""
     model = Customer
     template_name = 'fae/customer_form.html'
-    fields = ['customer_code', 'name', 'contact', 'phone', 'address']
+    fields = ['customer_code']
     success_url = reverse_lazy('fae:customer_list')
     
     def form_valid(self, form):
