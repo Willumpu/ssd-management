@@ -204,6 +204,35 @@
                     localStorage.setItem('timelineCollapsed', 'true');
                 }
             }
+
+            // 通用模块折叠
+            function toggleSection(id) {
+                var content = document.getElementById('section-' + id);
+                var icon = document.getElementById('icon-' + id);
+                if (!content || !icon) return;
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    icon.style.transform = 'rotate(0deg)';
+                    localStorage.setItem('section_' + id + '_collapsed', 'false');
+                } else {
+                    content.style.display = 'none';
+                    icon.style.transform = 'rotate(-90deg)';
+                    localStorage.setItem('section_' + id + '_collapsed', 'true');
+                }
+            }
+
+            // 初始化各模块折叠状态
+            (function() {
+                var sections = ['fae-tasks', 'test-items', 'abnormal-samples', 'solutions', 'rd-requirements', 'sample-materials'];
+                sections.forEach(function(id) {
+                    var content = document.getElementById('section-' + id);
+                    var icon = document.getElementById('icon-' + id);
+                    if (content && icon && localStorage.getItem('section_' + id + '_collapsed') === 'true') {
+                        content.style.display = 'none';
+                        icon.style.transform = 'rotate(-90deg)';
+                    }
+                });
+            })();
         </script>
         {% else %}
         <div class="p-8 text-center text-slate-500">
@@ -216,15 +245,18 @@
     <!-- FAE任务 -->
     {% if fae_tasks %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('fae-tasks')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-headset text-blue-400 text-sm"></i>
                 FAE任务
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ fae_tasks|length }}</span>
             </h3>
-            <a href="{{ create_urls.fae_task }}" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.fae_task }}" class="text-xs text-blue-400 hover:text-blue-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-fae-tasks"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-fae-tasks" class="divide-y divide-slate-800">
             {% for task in fae_tasks %}
             <a href="{% url 'fae:task_detail' task.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
@@ -243,15 +275,18 @@
     <!-- 测试跟踪 -->
     {% if test_items %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('test-items')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-vial text-cyan-400 text-sm"></i>
                 测试跟踪
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ test_items|length }}</span>
             </h3>
-            <a href="{{ create_urls.test_item }}" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.test_item }}" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-test-items"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-test-items" class="divide-y divide-slate-800">
             {% for test in test_items %}
             <a href="{% url 'testing:test_detail' test.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
@@ -270,15 +305,18 @@
     <!-- 异常样品 -->
     {% if abnormal_samples %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('abnormal-samples')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
                 异常样品
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ abnormal_samples|length }}</span>
             </h3>
-            <a href="{{ create_urls.abnormal_sample }}" class="text-xs text-red-400 hover:text-red-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.abnormal_sample }}" class="text-xs text-red-400 hover:text-red-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-abnormal-samples"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-abnormal-samples" class="divide-y divide-slate-800">
             {% for sample in abnormal_samples %}
             <a href="{% url 'abnormal:abnormal_detail' sample.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
@@ -297,15 +335,18 @@
     <!-- 方案 -->
     {% if solutions %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('solutions')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-file-alt text-indigo-400 text-sm"></i>
                 方案
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ solutions|length }}</span>
             </h3>
-            <a href="{{ create_urls.solution }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.solution }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-solutions"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-solutions" class="divide-y divide-slate-800">
             {% for solution in solutions %}
             <a href="{% url 'solution:solution_detail' solution.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
@@ -324,15 +365,18 @@
     <!-- 研发需求 -->
     {% if rd_requirements %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('rd-requirements')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-flask text-green-400 text-sm"></i>
                 研发需求
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ rd_requirements|length }}</span>
             </h3>
-            <a href="{{ create_urls.rd_requirement }}" class="text-xs text-green-400 hover:text-green-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.rd_requirement }}" class="text-xs text-green-400 hover:text-green-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-rd-requirements"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-rd-requirements" class="divide-y divide-slate-800">
             {% for req in rd_requirements %}
             <a href="{% url 'rd_requirement:requirement_detail' req.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
@@ -351,15 +395,18 @@
     <!-- 样品物料 -->
     {% if sample_materials %}
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('sample-materials')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-box text-amber-400 text-sm"></i>
                 样品物料
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ sample_materials|length }}</span>
             </h3>
-            <a href="{{ create_urls.sample_material }}" class="text-xs text-amber-400 hover:text-amber-300 transition-colors">+ 新建</a>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.sample_material }}" class="text-xs text-amber-400 hover:text-amber-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-sample-materials"></i>
+            </div>
         </div>
-        <div class="divide-y divide-slate-800">
+        <div id="section-sample-materials" class="divide-y divide-slate-800">
             {% for mat in sample_materials %}
             <a href="{% url 'sample_shipment:material_detail' mat.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
