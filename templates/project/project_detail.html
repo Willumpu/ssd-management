@@ -117,15 +117,18 @@
 
     <!-- 时间线 -->
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleTimeline()">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-stream text-slate-400 text-sm"></i>
                 活动时间线
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ activities|length }} 条</span>
             </h3>
+            <button id="timelineToggleBtn" class="text-slate-400 hover:text-white transition-colors p-1">
+                <i class="fas fa-chevron-down" id="timelineToggleIcon"></i>
+            </button>
         </div>
         {% if activities %}
-        <div class="p-6">
+        <div id="timelineContent" class="p-6">
             <div class="relative border-l-2 border-slate-700 ml-3 space-y-6">
                 {% for activity in activities %}
                 <div class="relative pl-6">
@@ -175,6 +178,33 @@
                 {% endfor %}
             </div>
         </div>
+        <script>
+            (function() {
+                var content = document.getElementById('timelineContent');
+                var icon = document.getElementById('timelineToggleIcon');
+                var collapsed = localStorage.getItem('timelineCollapsed') === 'true';
+                if (collapsed && content) {
+                    content.style.display = 'none';
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                }
+            })();
+            function toggleTimeline() {
+                var content = document.getElementById('timelineContent');
+                var icon = document.getElementById('timelineToggleIcon');
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    icon.classList.remove('fa-chevron-up');
+                    icon.classList.add('fa-chevron-down');
+                    localStorage.setItem('timelineCollapsed', 'false');
+                } else {
+                    content.style.display = 'none';
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                    localStorage.setItem('timelineCollapsed', 'true');
+                }
+            }
+        </script>
         {% else %}
         <div class="p-8 text-center text-slate-500">
             <i class="fas fa-history text-3xl mb-2 block"></i>
