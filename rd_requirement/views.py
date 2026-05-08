@@ -220,15 +220,18 @@ class RDRequirementUpdateView(LoginRequiredMixin, UpdateView):
                 new_status=self.object.status if old_status != self.object.status else ''
             )
             
-            # 记录项目时间线
-            if self.object.project:
+            # 记录项目时间线（仅状态变更时）
+            if self.object.project and old_status != self.object.status:
                 from project.signals import record_project_activity
+                status_dict = dict(RDRequirement.STATUS_CHOICES)
+                old_status_display = status_dict.get(old_status, old_status)
+                new_status_display = status_dict.get(self.object.status, self.object.status)
                 record_project_activity(
                     project=self.object.project,
                     actor=self.request.user,
-                    action='update',
+                    action='status_change',
                     instance=self.object,
-                    description='；'.join(detail_changes)
+                    description=f"状态：{old_status_display} → {new_status_display}"
                 )
         
         messages.success(self.request, '研发需求更新成功')
