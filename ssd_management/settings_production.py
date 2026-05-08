@@ -1,5 +1,5 @@
 """
-生产环境配置 - 腾讯云部署
+生产环境配置
 """
 from .settings import *
 import os
@@ -14,7 +14,7 @@ DATABASES = {
         'NAME': 'ssd_management',
         'USER': 'ssd_user',
         'PASSWORD': 'xxy1112...',
-        'HOST': 'localhost',  # 或腾讯云数据库内网地址
+        'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
             'charset': 'utf8mb4',
@@ -24,7 +24,6 @@ DATABASES = {
 
 # 静态文件
 STATIC_ROOT = '/var/www/ssd_management/static/'
-STATICFILES_DIRS = []  # 生产环境避免与 STATIC_ROOT 冲突
 MEDIA_ROOT = '/var/www/ssd_management/media/'
 
 # 安全设置

@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ssd_management.settings_production')
+
 # Gunicorn 配置文件 - 针对 2GB 内存优化
 bind = "127.0.0.1:8000"
 workers = 4  # 4个workers

@@ -1,67 +1,32 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
 
-# Virtual environments
+# Virtual Environment
 .venv/
 venv/
 env/
-ENV/
-env.bak/
-venv.bak/
 
-# Django stuff
-db.sqlite3
-db.sqlite3-journal
+# Django
 *.log
 local_settings.py
 
-# Static files collected (by collectstatic)
-staticfiles/
+db.sqlite3
+db.sqlite3-journal
 
-# Media uploads (用户上传的文件)
+# 静态/媒体文件（由 collectstatic 生成）
+staticfiles/
+collected_static/
 media/
 
-# Node / frontend
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
-
-# Backup files
-*.backup
-*.bak
-
-# Secrets
-.env
-*.pem
-
-# Django translations compiled
-*.mo
-*.pot
-
-# Testing / Coverage
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-
-# Build / Distribution
-*.egg-info/
-dist/
-build/
