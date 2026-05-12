@@ -290,11 +290,25 @@
             {% for test in test_items %}
             <a href="{% url 'testing:test_detail' test.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
                 <div class="flex justify-between items-start">
-                    <div>
-                        <div class="text-sm text-white font-medium">{{ test.test_number }}</div>
-                        <div class="text-xs text-slate-400 mt-0.5">{{ test.get_test_content_display }}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-sm text-white font-medium">{{ test.test_number }}</span>
+                            <span class="text-xs text-slate-500">{{ test.get_test_content_display }}</span>
+                        </div>
+                        <div class="flex items-center gap-3 mt-2 flex-wrap text-xs">
+                            <span class="text-slate-400">方案：<span class="text-slate-300">{{ test.solution.solution_number|default:'-' }}</span></span>
+                            <span class="text-slate-500">|</span>
+                            <span class="text-slate-400">总数：<span class="text-white font-medium">{{ test.total_samples }}</span></span>
+                            <span class="text-slate-500">|</span>
+                            <span class="text-slate-400">异常：<span class="text-red-400 font-medium">{{ test.abnormal_samples_count }}</span></span>
+                            <span class="text-slate-500">|</span>
+                            <span class="text-slate-400">通过：<span class="text-green-400 font-medium">{{ test.passed_samples }}</span></span>
+                        </div>
                     </div>
-                    <span class="px-2 py-0.5 rounded text-xs bg-slate-800 border border-slate-700 text-slate-300">{{ test.get_status_display }}</span>
+                    <span class="px-2 py-0.5 rounded text-xs border whitespace-nowrap ml-2
+                        {% if test.status == 'in_progress' %}bg-green-500/20 text-green-400 border-green-500/30{% elif test.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif test.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
+                        {{ test.get_status_display }}
+                    </span>
                 </div>
             </a>
             {% endfor %}
