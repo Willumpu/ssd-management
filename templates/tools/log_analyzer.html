@@ -1,0 +1,489 @@
+{% extends 'base.html' %}
+
+{% block title %}SSD 日志分析工具 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}SSD 日志分析{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 文件上传区 -->
+    <div id="dropZone" class="glass rounded-xl border-2 border-dashed border-slate-700 p-8 text-center cursor-pointer hover:border-blue-500/50 transition-all" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".log,.txt,.csv" class="hidden" onchange="handleFileSelect(event)">
+        <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3"></i>
+        <p class="text-white font-medium">点击或拖拽上传 SSD 日志文件</p>
+        <p class="text-xs text-slate-500 mt-1">支持 .log / .txt / .csv 格式，最大 200MB</p>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div id="statsArea" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <p class="text-xs text-slate-500">总行数</p>
+            <p class="text-2xl font-bold text-white mt-1" id="statTotal">0</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <p class="text-xs text-slate-500">错误数</p>
+            <p class="text-2xl font-bold text-red-400 mt-1" id="statErrors">0</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <p class="text-xs text-slate-500">坏块数</p>
+            <p class="text-2xl font-bold text-orange-400 mt-1" id="statBadBlocks">0</p>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <p class="text-xs text-slate-500">错误率</p>
+            <p class="text-2xl font-bold text-yellow-400 mt-1" id="statErrorRate">0%</p>
+        </div>
+    </div>
+
+    <!-- 图表区 -->
+    <div id="chartsArea" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+                <h3 class="font-semibold text-white text-sm">操作类型分布</h3>
+            </div>
+            <div class="p-4 h-64">
+                <canvas id="opTypeChart"></canvas>
+            </div>
+        </div>
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+                <h3 class="font-semibold text-white text-sm">状态分布</h3>
+            </div>
+            <div class="p-4 h-64">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden lg:col-span-2">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+                <h3 class="font-semibold text-white text-sm">时间趋势（操作量 / 错误数）</h3>
+            </div>
+            <div class="p-4 h-72">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div id="filterArea" class="glass rounded-xl border border-slate-700/50 p-4 hidden">
+        <div class="flex flex-wrap gap-3 items-center">
+            <span class="text-sm text-slate-400">筛选：</span>
+            <select id="filterOpType" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200" onchange="applyFilters()">
+                <option value="">全部操作</option>
+            </select>
+            <select id="filterStatus" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200" onchange="applyFilters()">
+                <option value="">全部状态</option>
+            </select>
+            <input type="text" id="filterKeyword" placeholder="关键词搜索..." class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 w-48" oninput="applyFilters()">
+            <button onclick="clearFilters()" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-sm hover:bg-slate-700">清除</button>
+            <span class="text-xs text-slate-500 ml-auto" id="filterCount">显示 0 / 0 条</span>
+        </div>
+    </div>
+
+    <!-- 日志列表 -->
+    <div id="logArea" class="glass rounded-xl border border-slate-700/50 overflow-hidden hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white text-sm">日志详情</h3>
+            <div class="flex gap-2">
+                <button onclick="exportCSV()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                    <i class="fas fa-download mr-1"></i>导出 CSV
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto max-h-96 overflow-y-auto" id="logTableContainer">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase sticky top-0">
+                    <tr>
+                        <th class="px-4 py-3 font-medium">时间</th>
+                        <th class="px-4 py-3 font-medium">操作</th>
+                        <th class="px-4 py-3 font-medium">LBA / 块</th>
+                        <th class="px-4 py-3 font-medium">大小</th>
+                        <th class="px-4 py-3 font-medium">状态</th>
+                        <th class="px-4 py-3 font-medium">耗时</th>
+                        <th class="px-4 py-3 font-medium">温度</th>
+                        <th class="px-4 py-3 font-medium">详情</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800" id="logTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// ============ 全局状态 ============
+let allLogs = [];
+let filteredLogs = [];
+let charts = {};
+
+// ============ 文件上传 ============
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('border-blue-500');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+});
+
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) processFile(file);
+}
+
+// ============ SSD 日志解析器 ============
+function parseSSDLogLine(line) {
+    line = line.trim();
+    if (!line) return null;
+
+    const result = {
+        raw: line,
+        timestamp: '',
+        opType: 'UNKNOWN',
+        lba: '',
+        size: '',
+        status: 'UNKNOWN',
+        latency: '',
+        temperature: '',
+        detail: ''
+    };
+
+    // 尝试匹配时间戳
+    const tsMatch = line.match(/(\d{4}[-\/]\d{2}[-\/]\d{2}[\sT]\d{2}:\d{2}:\d{2}(?:\.\d+)?)|(\d{2}:\d{2}:\d{2}(?:\.\d+)?)/);
+    if (tsMatch) result.timestamp = tsMatch[0];
+
+    // 识别操作类型
+    const opUpper = line.toUpperCase();
+    if (opUpper.includes('READ')) result.opType = 'READ';
+    else if (opUpper.includes('WRITE')) result.opType = 'WRITE';
+    else if (opUpper.includes('ERASE')) result.opType = 'ERASE';
+    else if (opUpper.includes('TRIM')) result.opType = 'TRIM';
+    else if (opUpper.includes('GC') || opUpper.includes('GARBAGE')) result.opType = 'GC';
+    else if (opUpper.includes('WEAR')) result.opType = 'WEAR_LEVELING';
+    else if (opUpper.includes('FLUSH')) result.opType = 'FLUSH';
+    else if (opUpper.includes('IDLE')) result.opType = 'IDLE';
+    else if (opUpper.includes('INIT')) result.opType = 'INIT';
+
+    // 识别状态
+    if (opUpper.includes('FAIL') || opUpper.includes('ERROR') || opUpper.includes('ERR')) {
+        result.status = 'ERROR';
+    } else if (opUpper.includes('BAD_BLOCK') || opUpper.includes('BAD BLOCK') || opUpper.includes('BBT')) {
+        result.status = 'BAD_BLOCK';
+    } else if (opUpper.includes('TIMEOUT')) {
+        result.status = 'TIMEOUT';
+    } else if (opUpper.includes('SUCCESS') || opUpper.includes('OK') || opUpper.includes('DONE')) {
+        result.status = 'SUCCESS';
+    } else if (opUpper.includes('PENDING') || opUpper.includes('WAIT')) {
+        result.status = 'PENDING';
+    }
+
+    // 提取 LBA / Block
+    const lbaMatch = line.match(/LBA[:\s=]+(0x[0-9a-fA-F]+|\d+)/i) ||
+                     line.match(/BLOCK[:\s=]+(0x[0-9a-fA-F]+|\d+)/i) ||
+                     line.match(/PBN[:\s=]+(0x[0-9a-fA-F]+|\d+)/i) ||
+                     line.match(/Page[:\s=]+(0x[0-9a-fA-F]+|\d+)/i);
+    if (lbaMatch) result.lba = lbaMatch[1];
+
+    // 提取大小
+    const sizeMatch = line.match(/SIZE[:\s=]+(\d+)\s*(KB|MB|B|SECTOR)?/i) ||
+                      line.match(/LEN[:\s=]+(\d+)\s*(KB|MB|B|SECTOR)?/i) ||
+                      line.match(/(\d+)\s*(KB|MB|B|SECTOR)/i);
+    if (sizeMatch) result.size = sizeMatch[1] + (sizeMatch[2] ? ' ' + sizeMatch[2].toUpperCase() : '');
+
+    // 提取耗时
+    const latencyMatch = line.match(/(?:LATENCY|TIME|COST|SPEND)[:\s=]+(\d+(?:\.\d+)?)\s*(US|MS|S|µS)?/i) ||
+                         line.match(/(\d+(?:\.\d+)?)\s*(US|MS|S|µS)/i);
+    if (latencyMatch) {
+        const val = parseFloat(latencyMatch[1]);
+        const unit = (latencyMatch[2] || 'us').toLowerCase();
+        if (unit === 'ms') result.latency = (val * 1000).toFixed(0) + ' us';
+        else if (unit === 's') result.latency = (val * 1000000).toFixed(0) + ' us';
+        else result.latency = val.toFixed(0) + ' us';
+    }
+
+    // 提取温度
+    const tempMatch = line.match(/(?:TEMP|TEMPERATURE)[:\s=]+(\d+(?:\.\d+)?)/i);
+    if (tempMatch) result.temperature = tempMatch[1] + '°C';
+
+    // 详情：取剩余部分或整条（去除时间戳后的内容）
+    result.detail = line.substring(result.timestamp.length).trim() || line;
+
+    return result;
+}
+
+// ============ 文件处理 ============
+function processFile(file) {
+    dropZone.innerHTML = `
+        <i class="fas fa-spinner fa-spin text-2xl text-blue-500 mb-3"></i>
+        <p class="text-white">正在解析 ${file.name}...</p>
+        <p class="text-xs text-slate-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+    `;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+        allLogs = [];
+
+        for (const line of lines) {
+            const parsed = parseSSDLogLine(line);
+            if (parsed) allLogs.push(parsed);
+        }
+
+        filteredLogs = allLogs;
+        showResults();
+        dropZone.innerHTML = `
+            <i class="fas fa-check-circle text-3xl text-green-500 mb-3"></i>
+            <p class="text-white font-medium">${file.name} 解析完成</p>
+            <p class="text-xs text-slate-500">共解析 ${allLogs.length.toLocaleString()} 条有效记录</p>
+            <p class="text-xs text-blue-400 mt-2 cursor-pointer hover:underline" onclick="resetUpload()">重新上传</p>
+        `;
+    };
+    reader.readAsText(file);
+}
+
+function resetUpload() {
+    document.getElementById('fileInput').value = '';
+    dropZone.innerHTML = `
+        <input type="file" id="fileInput" accept=".log,.txt,.csv" class="hidden" onchange="handleFileSelect(event)">
+        <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3"></i>
+        <p class="text-white font-medium">点击或拖拽上传 SSD 日志文件</p>
+        <p class="text-xs text-slate-500 mt-1">支持 .log / .txt / .csv 格式，最大 200MB</p>
+    `;
+    document.getElementById('statsArea').classList.add('hidden');
+    document.getElementById('chartsArea').classList.add('hidden');
+    document.getElementById('filterArea').classList.add('hidden');
+    document.getElementById('logArea').classList.add('hidden');
+    allLogs = [];
+    filteredLogs = [];
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+}
+
+// ============ 展示结果 ============
+function showResults() {
+    document.getElementById('statsArea').classList.remove('hidden');
+    document.getElementById('chartsArea').classList.remove('hidden');
+    document.getElementById('filterArea').classList.remove('hidden');
+    document.getElementById('logArea').classList.remove('hidden');
+
+    updateStats();
+    updateFilterOptions();
+    renderCharts();
+    renderTable();
+}
+
+function updateStats() {
+    const total = allLogs.length;
+    const errors = allLogs.filter(l => l.status === 'ERROR' || l.status === 'TIMEOUT').length;
+    const badBlocks = allLogs.filter(l => l.status === 'BAD_BLOCK').length;
+    const errorRate = total > 0 ? ((errors / total) * 100).toFixed(2) : 0;
+
+    document.getElementById('statTotal').textContent = total.toLocaleString();
+    document.getElementById('statErrors').textContent = errors.toLocaleString();
+    document.getElementById('statBadBlocks').textContent = badBlocks.toLocaleString();
+    document.getElementById('statErrorRate').textContent = errorRate + '%';
+}
+
+function updateFilterOptions() {
+    const opTypes = [...new Set(allLogs.map(l => l.opType))].sort();
+    const statuses = [...new Set(allLogs.map(l => l.status))].sort();
+
+    const opSelect = document.getElementById('filterOpType');
+    opSelect.innerHTML = '<option value="">全部操作</option>' +
+        opTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+
+    const statusSelect = document.getElementById('filterStatus');
+    statusSelect.innerHTML = '<option value="">全部状态</option>' +
+        statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+}
+
+// ============ 图表 ============
+function renderCharts() {
+    const opTypeCounts = {};
+    const statusCounts = {};
+    const timeSeries = {};
+
+    for (const log of allLogs) {
+        opTypeCounts[log.opType] = (opTypeCounts[log.opType] || 0) + 1;
+        statusCounts[log.status] = (statusCounts[log.status] || 0) + 1;
+
+        // 时间序列（按小时聚合）
+        if (log.timestamp) {
+            const hour = log.timestamp.substring(0, 13); // 精确到小时
+            if (!timeSeries[hour]) timeSeries[hour] = { total: 0, errors: 0 };
+            timeSeries[hour].total++;
+            if (log.status === 'ERROR' || log.status === 'TIMEOUT') timeSeries[hour].errors++;
+        }
+    }
+
+    // 操作类型饼图
+    const opCtx = document.getElementById('opTypeChart').getContext('2d');
+    if (charts.opType) charts.opType.destroy();
+    charts.opType = new Chart(opCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(opTypeCounts),
+            datasets: [{
+                data: Object.values(opTypeCounts),
+                backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#64748b']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } } }
+        }
+    });
+
+    // 状态柱状图
+    const statusColors = {
+        'SUCCESS': '#22c55e', 'ERROR': '#ef4444', 'BAD_BLOCK': '#f97316',
+        'TIMEOUT': '#f59e0b', 'PENDING': '#3b82f6', 'UNKNOWN': '#64748b'
+    };
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    if (charts.status) charts.status.destroy();
+    charts.status = new Chart(statusCtx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(statusCounts),
+            datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: Object.keys(statusCounts).map(k => statusColors[k] || '#64748b')
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+                x: { ticks: { color: '#64748b' }, grid: { display: false } }
+            }
+        }
+    });
+
+    // 时间趋势图
+    const sortedHours = Object.keys(timeSeries).sort();
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    if (charts.trend) charts.trend.destroy();
+    charts.trend = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: sortedHours.map(h => h.replace('T', ' ')),
+            datasets: [
+                {
+                    label: '总操作',
+                    data: sortedHours.map(h => timeSeries[h].total),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2
+                },
+                {
+                    label: '错误数',
+                    data: sortedHours.map(h => timeSeries[h].errors),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#94a3b8' } }
+            },
+            scales: {
+                y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+                x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { color: '#1e293b' } }
+            }
+        }
+    });
+}
+
+// ============ 表格渲染 ============
+function renderTable() {
+    const tbody = document.getElementById('logTableBody');
+    const displayCount = Math.min(filteredLogs.length, 500); // 最多显示500行
+
+    let html = '';
+    for (let i = 0; i < displayCount; i++) {
+        const log = filteredLogs[i];
+        const statusClass = {
+            'SUCCESS': 'text-green-400',
+            'ERROR': 'text-red-400 font-medium',
+            'BAD_BLOCK': 'text-orange-400 font-medium',
+            'TIMEOUT': 'text-yellow-400',
+            'PENDING': 'text-blue-400',
+            'UNKNOWN': 'text-slate-500'
+        }[log.status] || 'text-slate-500';
+
+        html += `<tr class="hover:bg-slate-800/30">
+            <td class="px-4 py-2 text-slate-400 text-xs mono whitespace-nowrap">${log.timestamp || '-'}</td>
+            <td class="px-4 py-2 text-slate-300 text-xs">${log.opType}</td>
+            <td class="px-4 py-2 text-slate-400 text-xs mono">${log.lba || '-'}</td>
+            <td class="px-4 py-2 text-slate-400 text-xs">${log.size || '-'}</td>
+            <td class="px-4 py-2 text-xs ${statusClass}">${log.status}</td>
+            <td class="px-4 py-2 text-slate-400 text-xs">${log.latency || '-'}</td>
+            <td class="px-4 py-2 text-slate-400 text-xs">${log.temperature || '-'}</td>
+            <td class="px-4 py-2 text-slate-500 text-xs max-w-xs truncate" title="${log.detail.replace(/"/g, '&quot;')}">${log.detail}</td>
+        </tr>`;
+    }
+
+    if (filteredLogs.length > displayCount) {
+        html += `<tr><td colspan="8" class="px-4 py-3 text-center text-xs text-slate-500">还有 ${(filteredLogs.length - displayCount).toLocaleString()} 条未显示，请使用筛选缩小范围</td></tr>`;
+    }
+
+    tbody.innerHTML = html;
+    document.getElementById('filterCount').textContent = `显示 ${Math.min(filteredLogs.length, displayCount).toLocaleString()} / ${filteredLogs.length.toLocaleString()} 条`;
+}
+
+// ============ 筛选 ============
+function applyFilters() {
+    const opType = document.getElementById('filterOpType').value;
+    const status = document.getElementById('filterStatus').value;
+    const keyword = document.getElementById('filterKeyword').value.toLowerCase();
+
+    filteredLogs = allLogs.filter(log => {
+        if (opType && log.opType !== opType) return false;
+        if (status && log.status !== status) return false;
+        if (keyword && !log.raw.toLowerCase().includes(keyword)) return false;
+        return true;
+    });
+
+    renderTable();
+}
+
+function clearFilters() {
+    document.getElementById('filterOpType').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterKeyword').value = '';
+    filteredLogs = allLogs;
+    renderTable();
+}
+
+// ============ 导出 CSV ============
+function exportCSV() {
+    const headers = ['时间', '操作类型', 'LBA/块', '大小', '状态', '耗时', '温度', '原始内容'];
+    const rows = filteredLogs.map(l => [
+        l.timestamp, l.opType, l.lba, l.size, l.status, l.latency, l.temperature, l.raw
+    ]);
+
+    let csv = '\ufeff' + headers.join(',') + '\n';
+    for (const row of rows) {
+        csv += row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'ssd_log_analysis_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.csv';
+    link.click();
+}
+</script>
+{% endblock %}

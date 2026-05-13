@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import TemplateView
 from fae.views import DashboardView, LoginView, LogoutView
 
 urlpatterns = [
@@ -20,6 +21,7 @@ urlpatterns = [
     path('rd/', include('rd_requirement.urls')),
     path('shipment/', include('sample_shipment.urls')),
     path('project/', include('project.urls')),
+    path('tools/log-analyzer/', TemplateView.as_view(template_name='tools/log_analyzer.html'), name='log_analyzer'),
 ]
 
 if settings.DEBUG:
