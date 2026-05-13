@@ -1068,3 +1068,15 @@ def api_log_report_submit(request):
         return JsonResponse({'success': False, 'error': '异常样品不存在'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def api_log_keywords(request):
+    """获取日志分析关键词配置"""
+    keywords = LogAnalyzerKeyword.objects.filter(is_active=True).order_by('order', 'id')
+    data = [{
+        'name': kw.name,
+        'pattern': kw.pattern,
+        'regex': kw.regex,
+    } for kw in keywords]
+    return JsonResponse({'keywords': data})

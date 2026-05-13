@@ -195,6 +195,25 @@ class FAETaskComment(models.Model):
         return f"{self.task.task_number} - {self.author.username}"
 
 
+class LogAnalyzerKeyword(models.Model):
+    """日志分析关键词配置"""
+    name = models.CharField('关键词名称', max_length=100)
+    pattern = models.CharField('匹配内容', max_length=500, help_text='支持普通文本或正则表达式')
+    regex = models.BooleanField('是否正则', default=False)
+    is_active = models.BooleanField('是否启用', default=True)
+    order = models.PositiveIntegerField('排序', default=0, help_text='数字越小越靠前')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        verbose_name = '日志分析关键词'
+        verbose_name_plural = '日志分析关键词'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 class Notification(models.Model):
     """通知模型"""
     NOTIFICATION_TYPE_CHOICES = [

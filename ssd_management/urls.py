@@ -9,6 +9,7 @@ from django.views.generic import TemplateView
 from fae.views import (
     DashboardView, LoginView, LogoutView,
     api_test_items, api_abnormal_samples, api_log_report_submit,
+    api_log_keywords,
 )
 
 urlpatterns = [
@@ -28,6 +29,7 @@ urlpatterns = [
     path('api/test-items/', api_test_items, name='api_test_items'),
     path('api/abnormal-samples/', api_abnormal_samples, name='api_abnormal_samples'),
     path('api/log-report/', api_log_report_submit, name='api_log_report_submit'),
+    path('api/log-keywords/', api_log_keywords, name='api_log_keywords'),
 ]
 
 if settings.DEBUG:

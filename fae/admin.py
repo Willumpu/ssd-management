@@ -3,7 +3,7 @@ FAE 模块 Admin 配置
 """
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Customer, FAETask, FAETaskLog, FAETaskComment
+from .models import User, Customer, FAETask, FAETaskLog, FAETaskComment, LogAnalyzerKeyword
 
 
 @admin.register(User)
@@ -51,3 +51,12 @@ class FAETaskCommentAdmin(admin.ModelAdmin):
     def content_preview(self, obj):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
     content_preview.short_description = '评论内容'
+
+
+@admin.register(LogAnalyzerKeyword)
+class LogAnalyzerKeywordAdmin(admin.ModelAdmin):
+    list_display = ['name', 'pattern', 'regex', 'is_active', 'order', 'updated_at']
+    list_filter = ['is_active', 'regex']
+    search_fields = ['name', 'pattern']
+    list_editable = ['is_active', 'order']
+    ordering = ['order', 'id']

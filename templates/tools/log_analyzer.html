@@ -160,10 +160,31 @@
     function loadKeywords() {
         try {
             const raw = localStorage.getItem(LS_KEY);
-            keywords = raw ? JSON.parse(raw) : [...DEFAULT_KEYWORDS];
+            keywords = raw ? JSON.parse(raw) : [];
         } catch {
-            keywords = [...DEFAULT_KEYWORDS];
+            keywords = [];
         }
+    }
+
+    function loadDefaultKeywordsFromBackend() {
+        fetch('/api/log-keywords/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.json())
+            .then(data => {
+                if (data.keywords && data.keywords.length > 0) {
+                    keywords = data.keywords;
+                } else {
+                    keywords = [...DEFAULT_KEYWORDS];
+                }
+                saveKeywords();
+                renderKeywords();
+                if (filesData.length > 0) analyzeAll();
+            })
+            .catch(() => {
+                keywords = [...DEFAULT_KEYWORDS];
+                saveKeywords();
+                renderKeywords();
+                if (filesData.length > 0) analyzeAll();
+            });
     }
 
     function saveKeywords() {
@@ -205,10 +226,7 @@
 
     window.resetKeywords = function() {
         if (!confirm('确定重置为默认关键词吗？')) return;
-        keywords = [...DEFAULT_KEYWORDS];
-        saveKeywords();
-        renderKeywords();
-        if (filesData.length > 0) analyzeAll();
+        loadDefaultKeywordsFromBackend();
     };
 
     window.clearAllKeywords = function() {
@@ -632,9 +650,13 @@
         return cookieValue;
     }
 
-    // 初始化
+    // 初始化：优先从 localStorage 读取，若为空则从后端加载默认配置
     loadKeywords();
-    renderKeywords();
+    if (keywords.length > 0) {
+        renderKeywords();
+    } else {
+        loadDefaultKeywordsFromBackend();
+    }
 })();
 </script>
 {% endblock %}
