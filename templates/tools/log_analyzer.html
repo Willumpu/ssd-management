@@ -54,6 +54,7 @@
         <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2">
             <h3 class="font-semibold text-white text-sm"><i class="fas fa-table mr-2 text-emerald-400"></i>统计结果</h3>
             <div class="flex gap-2">
+                <button onclick="openReportModal()" class="text-xs text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-file-medical-alt mr-1"></i>生成报告并关联</button>
                 <button onclick="exportCSV()" class="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-download mr-1"></i>导出 CSV</button>
             </div>
         </div>
@@ -80,6 +81,57 @@
                 <button onclick="closeDetailModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-1" id="detailModalContent">
+            </div>
+        </div>
+    </div>
+
+    <!-- 报告关联弹窗 -->
+    <div id="reportModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm" onclick="if(event.target===this)closeReportModal()">
+        <div class="glass rounded-xl border border-slate-700/50 w-11/12 max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="font-semibold text-white text-sm"><i class="fas fa-file-medical-alt mr-2 text-emerald-400"></i>生成日志分析报告</h3>
+                <button onclick="closeReportModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5 space-y-4">
+                <!-- 目标类型选择 -->
+                <div>
+                    <label class="text-xs text-slate-400 block mb-2">关联到</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="targetType" value="test" checked onchange="onTargetTypeChange()" class="rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-0">
+                            <span class="text-sm text-slate-200">测试跟踪条目</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="targetType" value="abnormal" onchange="onTargetTypeChange()" class="rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-0">
+                            <span class="text-sm text-slate-200">异常样品条目</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 条目搜索 -->
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1.5">选择条目</label>
+                    <div class="relative">
+                        <input type="text" id="targetSearch" placeholder="输入编号搜索..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50" oninput="searchTargetItems()">
+                        <select id="targetSelect" class="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50">
+                            <option value="">-- 请先搜索 --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 报告预览 -->
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1.5">报告预览（可编辑）</label>
+                    <textarea id="reportPreview" class="w-full h-48 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-none"></textarea>
+                </div>
+
+                <div id="reportSubmitMsg" class="text-sm hidden"></div>
+            </div>
+            <div class="p-4 bg-slate-900/50 border-t border-slate-800 flex justify-end gap-3">
+                <button onclick="closeReportModal()" class="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 text-sm hover:bg-slate-800 transition-colors">取消</button>
+                <button onclick="submitReport()" id="reportSubmitBtn" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
+                    <i class="fas fa-check mr-1"></i>提交报告
+                </button>
             </div>
         </div>
     </div>
@@ -393,6 +445,162 @@
         a.click();
         URL.revokeObjectURL(url);
     };
+
+    // ========== 报告关联 ==========
+    let reportSearchTimer = null;
+
+    function generateReportHTML() {
+        const now = new Date().toLocaleString('zh-CN');
+        let html = '<h3>日志分析报告</h3>';
+        html += '<p><strong>分析时间：</strong>' + now + '</p>';
+        html += '<p><strong>文件数：</strong>' + filesData.length + ' &nbsp;|&nbsp; <strong>关键词数：</strong>' + keywords.length + '</p>';
+        html += '<h4>关键词配置</h4><ul>';
+        keywords.forEach(kw => {
+            html += '<li>' + escapeHtml(kw.name) + '：' + escapeHtml(kw.pattern) + (kw.regex ? '（正则）' : '') + '</li>';
+        });
+        html += '</ul>';
+        html += '<h4>统计结果</h4>';
+        html += '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;">';
+        html += '<thead style="background:#1e293b;"><tr><th style="text-align:left;padding:6px;border:1px solid #334155;color:#e2e8f0;">文件名</th>';
+        keywords.forEach(kw => {
+            html += '<th style="text-align:center;padding:6px;border:1px solid #334155;color:#e2e8f0;">' + escapeHtml(kw.name) + '</th>';
+        });
+        html += '<th style="text-align:center;padding:6px;border:1px solid #334155;color:#e2e8f0;">合计</th></tr></thead><tbody>';
+        filesData.forEach(fd => {
+            html += '<tr><td style="padding:6px;border:1px solid #334155;color:#cbd5e1;">' + escapeHtml(fd.name) + '</td>';
+            let rowTotal = 0;
+            fd.results.forEach(r => {
+                html += '<td style="text-align:center;padding:6px;border:1px solid #334155;color:#cbd5e1;">' + r.count + '</td>';
+                rowTotal += r.count;
+            });
+            html += '<td style="text-align:center;padding:6px;border:1px solid #334155;color:#cbd5e1;font-weight:bold;">' + rowTotal + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+
+    window.openReportModal = function() {
+        if (filesData.length === 0 || keywords.length === 0) {
+            alert('请先上传日志文件并配置关键词');
+            return;
+        }
+        document.getElementById('reportPreview').value = generateReportHTML();
+        document.getElementById('targetSearch').value = '';
+        document.getElementById('targetSelect').innerHTML = '<option value="">-- 请先搜索 --</option>';
+        document.getElementById('reportSubmitMsg').className = 'text-sm hidden';
+        document.getElementById('reportSubmitMsg').textContent = '';
+        document.getElementById('reportModal').classList.remove('hidden');
+        document.getElementById('reportModal').classList.add('flex');
+    };
+
+    window.closeReportModal = function() {
+        document.getElementById('reportModal').classList.add('hidden');
+        document.getElementById('reportModal').classList.remove('flex');
+    };
+
+    window.onTargetTypeChange = function() {
+        document.getElementById('targetSearch').value = '';
+        document.getElementById('targetSelect').innerHTML = '<option value="">-- 请先搜索 --</option>';
+    };
+
+    window.searchTargetItems = function() {
+        const q = document.getElementById('targetSearch').value.trim();
+        const targetType = document.querySelector('input[name="targetType"]:checked').value;
+        const select = document.getElementById('targetSelect');
+        if (!q) { select.innerHTML = '<option value="">-- 请先搜索 --</option>'; return; }
+
+        clearTimeout(reportSearchTimer);
+        reportSearchTimer = setTimeout(() => {
+            const url = targetType === 'test' ? '/api/test-items/?q=' + encodeURIComponent(q)
+                                               : '/api/abnormal-samples/?q=' + encodeURIComponent(q);
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    select.innerHTML = '';
+                    if (!data.items || data.items.length === 0) {
+                        select.innerHTML = '<option value="">未找到匹配条目</option>';
+                        return;
+                    }
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = '-- 选择条目 (' + data.items.length + '条) --';
+                    select.appendChild(placeholder);
+                    data.items.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.id;
+                        if (targetType === 'test') {
+                            opt.textContent = item.test_number + ' | ' + item.project + ' | ' + item.status;
+                        } else {
+                            opt.textContent = item.sample_number + ' | ' + item.customer + ' | ' + item.status;
+                        }
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(() => {
+                    select.innerHTML = '<option value="">搜索失败</option>';
+                });
+        }, 300);
+    };
+
+    window.submitReport = function() {
+        const targetType = document.querySelector('input[name="targetType"]:checked').value;
+        const targetId = document.getElementById('targetSelect').value;
+        const content = document.getElementById('reportPreview').value.trim();
+        const msg = document.getElementById('reportSubmitMsg');
+        const btn = document.getElementById('reportSubmitBtn');
+
+        if (!targetId) { alert('请选择目标条目'); return; }
+        if (!content) { alert('报告内容不能为空'); return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>提交中...';
+
+        fetch('/api/log-report/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ target_type: targetType, target_id: targetId, content: content })
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check mr-1"></i>提交报告';
+            if (data.success) {
+                msg.className = 'text-sm text-emerald-400';
+                msg.innerHTML = escapeHtml(data.message) + ' <a href="' + data.redirect_url + '" class="underline hover:text-emerald-300">查看条目 &rarr;</a>';
+                msg.classList.remove('hidden');
+            } else {
+                msg.className = 'text-sm text-red-400';
+                msg.textContent = data.error || '提交失败';
+                msg.classList.remove('hidden');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check mr-1"></i>提交报告';
+            msg.className = 'text-sm text-red-400';
+            msg.textContent = '提交失败: ' + err.message;
+            msg.classList.remove('hidden');
+        });
+    };
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 
     // 初始化
     loadKeywords();

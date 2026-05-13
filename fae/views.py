@@ -12,11 +12,13 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.db import models
 from django.db.models import Q, Count
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 import re
 from .models import User, Customer, FAETask, FAETaskLog, FAETaskComment, Notification
 from .forms import FAETaskCommentForm, FAETaskForm
-from testing.models import TestItem, TestItemLog
-from abnormal.models import AbnormalSample, AbnormalLog
+from testing.models import TestItem, TestItemLog, TestComment
+from abnormal.models import AbnormalSample, AbnormalLog, TestRecordEntry
 from rd_requirement.models import RDRequirement, RequirementLog
 from solution.models import Solution
 from datetime import datetime, timedelta
@@ -970,3 +972,91 @@ class UserSettingsView(LoginRequiredMixin, View):
 
         
         return redirect('fae:user_settings')
+
+
+# ==================== 日志分析工具 API ====================
+
+@login_required
+def api_test_items(request):
+    """获取测试项列表（用于日志分析工具关联）"""
+    q = request.GET.get('q', '').strip()
+    queryset = TestItem.objects.select_related('project').order_by('-created_at')[:100]
+    if q:
+        queryset = TestItem.objects.select_related('project').filter(
+            Q(test_number__icontains=q) | Q(project__name__icontains=q)
+        ).order_by('-created_at')[:100]
+    data = [{
+        'id': t.id,
+        'test_number': t.test_number,
+        'project': t.project.name if t.project else '-',
+        'status': t.get_status_display(),
+    } for t in queryset]
+    return JsonResponse({'items': data})
+
+
+@login_required
+def api_abnormal_samples(request):
+    """获取异常样品列表（用于日志分析工具关联）"""
+    q = request.GET.get('q', '').strip()
+    queryset = AbnormalSample.objects.select_related('customer').order_by('-created_at')[:100]
+    if q:
+        queryset = AbnormalSample.objects.select_related('customer').filter(
+            Q(sample_number__icontains=q) | Q(customer__customer_code__icontains=q)
+        ).order_by('-created_at')[:100]
+    data = [{
+        'id': a.id,
+        'sample_number': a.sample_number,
+        'customer': a.customer.customer_code if a.customer else '-',
+        'status': a.get_status_display(),
+    } for a in queryset]
+    return JsonResponse({'items': data})
+
+
+@login_required
+@require_POST
+def api_log_report_submit(request):
+    """提交日志分析报告到测试项或异常样品"""
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': '无效的 JSON 数据'})
+
+    target_type = data.get('target_type')
+    target_id = data.get('target_id')
+    content = data.get('content', '').strip()
+
+    if not target_type or not target_id:
+        return JsonResponse({'success': False, 'error': '请选择目标条目'})
+    if not content:
+        return JsonResponse({'success': False, 'error': '报告内容不能为空'})
+
+    try:
+        if target_type == 'test':
+            test = TestItem.objects.get(pk=int(target_id))
+            TestComment.objects.create(test=test, content=content, author=request.user)
+            return JsonResponse({
+                'success': True,
+                'message': '报告已添加到测试项 ' + test.test_number,
+                'redirect_url': reverse_lazy('testing:test_detail', kwargs={'pk': test.id})
+            })
+        elif target_type == 'abnormal':
+            sample = AbnormalSample.objects.get(pk=int(target_id))
+            TestRecordEntry.objects.create(
+                abnormal_sample=sample,
+                content=content,
+                operator=request.user
+            )
+            return JsonResponse({
+                'success': True,
+                'message': '报告已添加到异常样品 ' + sample.sample_number,
+                'redirect_url': reverse_lazy('abnormal:abnormal_detail', kwargs={'pk': sample.id})
+            })
+        else:
+            return JsonResponse({'success': False, 'error': '未知目标类型'})
+    except TestItem.DoesNotExist:
+        return JsonResponse({'success': False, 'error': '测试项不存在'})
+    except AbnormalSample.DoesNotExist:
+        return JsonResponse({'success': False, 'error': '异常样品不存在'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
