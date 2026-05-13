@@ -24,6 +24,7 @@ DATABASES = {
 
 # 静态文件
 STATIC_ROOT = '/var/www/ssd_management/static/'
+STATICFILES_DIRS = []  # 生产环境不使用 STATICFILES_DIRS，避免与 STATIC_ROOT 冲突
 MEDIA_ROOT = '/var/www/ssd_management/media/'
 
 # 安全设置
