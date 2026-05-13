@@ -15,7 +15,7 @@ from django.db.models import Q, Count
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 import re
-from .models import User, Customer, FAETask, FAETaskLog, FAETaskComment, Notification
+from .models import User, Customer, FAETask, FAETaskLog, FAETaskComment, Notification, LogAnalyzerKeyword
 from .forms import FAETaskCommentForm, FAETaskForm
 from testing.models import TestItem, TestItemLog, TestComment
 from abnormal.models import AbnormalSample, AbnormalLog, TestRecordEntry
