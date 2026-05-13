@@ -7,19 +7,19 @@
 <div class="space-y-6 animate-slide-in">
     <!-- 文件上传区 -->
     <div id="dropZone" class="glass rounded-xl border-2 border-dashed border-slate-700 p-8 text-center cursor-pointer hover:border-blue-500/50 transition-all" onclick="document.getElementById('fileInput').click()">
-        <input type="file" id="fileInput" accept=".log,.txt,.csv" class="hidden" onchange="handleFileSelect(event)">
+        <input type="file" id="fileInput" accept=".log,.txt,.csv" multiple class="hidden" onchange="handleFileSelect(event)">
         <i class="fas fa-cloud-upload-alt text-4xl text-slate-500 mb-3"></i>
         <p class="text-white font-medium">点击或拖拽上传 SSD 日志文件</p>
-        <p class="text-xs text-slate-500 mt-1">支持 .log / .txt / .csv 格式，最大 200MB</p>
+        <p class="text-xs text-slate-500 mt-1">支持批量上传 .log / .txt / .csv 格式，单文件最大 200MB</p>
     </div>
 
-    <!-- 文件信息 -->
-    <div id="fileInfo" class="glass rounded-xl p-4 border border-slate-700/50 hidden">
-        <div class="flex items-center gap-3">
-            <i class="fas fa-file-alt text-blue-400"></i>
-            <span class="text-sm text-slate-200" id="fileName">--</span>
-            <span class="text-xs text-slate-500" id="fileSize">--</span>
-            <span class="text-xs text-slate-400 ml-auto" id="lineCount">0 行</span>
+    <!-- 已上传文件列表 -->
+    <div id="fileListArea" class="glass rounded-xl border border-slate-700/50 overflow-hidden hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white text-sm"><i class="fas fa-folder-open mr-2 text-blue-400"></i>已上传文件 <span id="fileCountBadge" class="ml-1 text-xs text-slate-400">0</span></h3>
+            <button onclick="clearFiles()" class="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-trash mr-1"></i>清空</button>
+        </div>
+        <div id="fileList" class="divide-y divide-slate-800/50 max-h-40 overflow-y-auto p-2">
         </div>
     </div>
 
@@ -28,89 +28,62 @@
         <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
             <h3 class="font-semibold text-white text-sm"><i class="fas fa-tags mr-2 text-blue-400"></i>关键词配置</h3>
             <div class="flex gap-2">
-                <button onclick="resetKeywords()" class="text-xs text-slate-400 hover:text-slate-200 transition-colors px-2 py-1 rounded hover:bg-slate-800">
-                    <i class="fas fa-undo mr-1"></i>重置默认
-                </button>
-                <button onclick="clearAllKeywords()" class="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-slate-800">
-                    <i class="fas fa-trash mr-1"></i>清空
-                </button>
+                <button onclick="resetKeywords()" class="text-xs text-slate-400 hover:text-slate-200 transition-colors px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-undo mr-1"></i>重置默认</button>
+                <button onclick="clearAllKeywords()" class="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-trash mr-1"></i>清空</button>
             </div>
         </div>
         <div class="p-4 space-y-3">
-            <div class="flex gap-2">
-                <input type="text" id="kwName" placeholder="关键词名称 (如: ECC Error)" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50">
-                <input type="text" id="kwPattern" placeholder="匹配内容 (支持正则)" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50">
-                <label class="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-400 cursor-pointer select-none">
+            <div class="flex gap-2 flex-wrap md:flex-nowrap">
+                <input type="text" id="kwName" placeholder="关键词名称 (如: ECC Error)" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50">
+                <input type="text" id="kwPattern" placeholder="匹配内容 (支持正则)" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50">
+                <label class="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-400 cursor-pointer select-none whitespace-nowrap">
                     <input type="checkbox" id="kwRegex" class="rounded bg-slate-700 border-slate-600 text-blue-500 focus:ring-0">
                     正则
                 </label>
-                <button onclick="addKeyword()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+                <button onclick="addKeyword()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors whitespace-nowrap">
                     <i class="fas fa-plus mr-1"></i>添加
                 </button>
             </div>
             <div id="keywordsList" class="flex flex-wrap gap-2">
-                <!-- 关键词标签 -->
             </div>
         </div>
     </div>
 
-    <!-- 统计结果 -->
-    <div id="statsArea" class="grid grid-cols-2 md:grid-cols-4 gap-4 hidden">
-        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
-            <p class="text-xs text-slate-500">总行数</p>
-            <p class="text-2xl font-bold text-white mt-1" id="statTotal">0</p>
-        </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
-            <p class="text-xs text-slate-500">匹配关键词数</p>
-            <p class="text-2xl font-bold text-blue-400 mt-1" id="statKeywords">0</p>
-        </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
-            <p class="text-xs text-slate-500">总命中次数</p>
-            <p class="text-2xl font-bold text-emerald-400 mt-1" id="statHits">0</p>
-        </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
-            <p class="text-xs text-slate-500">命中率</p>
-            <p class="text-2xl font-bold text-amber-400 mt-1" id="statRate">0%</p>
-        </div>
-    </div>
-
-    <!-- 图表区 -->
-    <div id="chartsArea" class="grid grid-cols-1 lg:grid-cols-2 gap-6 hidden">
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="p-4 bg-slate-900/50 border-b border-slate-800">
-                <h3 class="font-semibold text-white text-sm"><i class="fas fa-chart-pie mr-2 text-purple-400"></i>关键词命中占比（扇形图）</h3>
-            </div>
-            <div class="p-4 h-72 flex items-center justify-center">
-                <canvas id="pieChart"></canvas>
-            </div>
-        </div>
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="p-4 bg-slate-900/50 border-b border-slate-800">
-                <h3 class="font-semibold text-white text-sm"><i class="fas fa-chart-bar mr-2 text-cyan-400"></i>关键词命中数量（柱状图）</h3>
-            </div>
-            <div class="p-4 h-72 flex items-center justify-center">
-                <canvas id="barChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- 匹配详情 -->
-    <div id="detailArea" class="glass rounded-xl border border-slate-700/50 overflow-hidden hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
-            <h3 class="font-semibold text-white text-sm"><i class="fas fa-list mr-2 text-emerald-400"></i>匹配详情</h3>
+    <!-- 统计表格 -->
+    <div id="resultArea" class="glass rounded-xl border border-slate-700/50 overflow-hidden hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2">
+            <h3 class="font-semibold text-white text-sm"><i class="fas fa-table mr-2 text-emerald-400"></i>统计结果</h3>
             <div class="flex gap-2">
-                <button onclick="expandAllDetails()" class="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-800">展开全部</button>
-                <button onclick="collapseAllDetails()" class="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-800">收起全部</button>
+                <button onclick="exportCSV()" class="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-slate-800"><i class="fas fa-download mr-1"></i>导出 CSV</button>
             </div>
         </div>
-        <div id="detailList" class="divide-y divide-slate-800/50 max-h-96 overflow-y-auto">
-            <!-- 动态生成 -->
+        <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+            <table class="w-full text-left text-sm" id="resultTable">
+                <thead class="bg-slate-900/80 text-slate-300 text-xs uppercase sticky top-0 z-10">
+                    <tr id="resultThead">
+                    </tr>
+                </thead>
+                <tbody id="resultTbody" class="divide-y divide-slate-800/50">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 匹配详情弹窗 -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm" onclick="if(event.target===this)closeDetailModal()">
+        <div class="glass rounded-xl border border-slate-700/50 w-11/12 max-w-4xl max-h-[80vh] flex flex-col overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+                <div>
+                    <h3 class="font-semibold text-white text-sm" id="detailModalTitle">匹配详情</h3>
+                    <p class="text-xs text-slate-500 mt-0.5" id="detailModalSubtitle"></p>
+                </div>
+                <button onclick="closeDetailModal()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-1" id="detailModalContent">
+            </div>
         </div>
     </div>
 </div>
-
-<!-- 引入 Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <script>
 (function() {
@@ -130,10 +103,7 @@
     ];
 
     let keywords = [];
-    let logLines = [];
-    let results = [];
-    let pieChartInst = null;
-    let barChartInst = null;
+    let filesData = []; // [{name, size, lines, results: [{kwIdx, count, lines: [{idx,line}]}]}]
 
     function loadKeywords() {
         try {
@@ -155,7 +125,7 @@
         keywords.forEach((kw, i) => {
             const tag = document.createElement('span');
             tag.className = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-white ${colors[i % colors.length]}`;
-            tag.innerHTML = `<span class="font-medium">${escapeHtml(kw.name)}</span><span class="text-white/60">${escapeHtml(kw.pattern)}</span><button onclick="removeKeyword(${i})" class="ml-1 text-white/70 hover:text-white"><i class="fas fa-times"></i></button>`;
+            tag.innerHTML = `<span class="font-medium">${escapeHtml(kw.name)}</span><span class="text-white/60 text-[10px]">${escapeHtml(kw.pattern)}${kw.regex ? '[正]' : ''}</span><button onclick="removeKeyword(${i})" class="ml-1 text-white/70 hover:text-white"><i class="fas fa-times"></i></button>`;
             container.appendChild(tag);
         });
     }
@@ -171,14 +141,14 @@
         document.getElementById('kwName').value = '';
         document.getElementById('kwPattern').value = '';
         document.getElementById('kwRegex').checked = false;
-        if (logLines.length > 0) analyze();
+        if (filesData.length > 0) analyzeAll();
     };
 
     window.removeKeyword = function(idx) {
         keywords.splice(idx, 1);
         saveKeywords();
         renderKeywords();
-        if (logLines.length > 0) analyze();
+        if (filesData.length > 0) analyzeAll();
     };
 
     window.resetKeywords = function() {
@@ -186,7 +156,7 @@
         keywords = [...DEFAULT_KEYWORDS];
         saveKeywords();
         renderKeywords();
-        if (logLines.length > 0) analyze();
+        if (filesData.length > 0) analyzeAll();
     };
 
     window.clearAllKeywords = function() {
@@ -194,13 +164,17 @@
         keywords = [];
         saveKeywords();
         renderKeywords();
-        if (logLines.length > 0) analyze();
+        if (filesData.length > 0) analyzeAll();
     };
 
     function escapeHtml(s) {
         const d = document.createElement('div');
         d.textContent = s;
         return d.innerHTML;
+    }
+
+    function escapeRegExp(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     // 文件上传
@@ -210,30 +184,14 @@
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         dropZone.classList.remove('border-blue-500/50');
-        const f = e.dataTransfer.files[0];
-        if (f) processFile(f);
+        const files = Array.from(e.dataTransfer.files);
+        processFiles(files);
     });
 
     window.handleFileSelect = function(e) {
-        const f = e.target.files[0];
-        if (f) processFile(f);
+        const files = Array.from(e.target.files);
+        processFiles(files);
     };
-
-    function processFile(file) {
-        if (file.size > 200 * 1024 * 1024) { alert('文件超过 200MB'); return; }
-        document.getElementById('fileName').textContent = file.name;
-        document.getElementById('fileSize').textContent = formatSize(file.size);
-        document.getElementById('fileInfo').classList.remove('hidden');
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const text = e.target.result;
-            logLines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-            document.getElementById('lineCount').textContent = logLines.length.toLocaleString() + ' 行';
-            analyze();
-        };
-        reader.readAsText(file);
-    }
 
     function formatSize(b) {
         if (b < 1024) return b + ' B';
@@ -241,175 +199,199 @@
         return (b / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
-    function analyze() {
-        if (keywords.length === 0 || logLines.length === 0) return;
+    function processFiles(files) {
+        const validFiles = files.filter(f => f.size <= 200 * 1024 * 1024);
+        if (validFiles.length === 0) { alert('文件超过 200MB 或格式不支持'); return; }
 
-        results = keywords.map(kw => {
-            let regex;
-            try {
-                regex = kw.regex ? new RegExp(kw.pattern, 'i') : new RegExp(escapeRegExp(kw.pattern), 'i');
-            } catch {
-                regex = new RegExp(escapeRegExp(kw.pattern), 'i');
-            }
-            const matchedLines = [];
-            logLines.forEach((line, idx) => {
-                if (regex.test(line)) matchedLines.push({ line: line.trim(), idx: idx + 1 });
-            });
-            return { name: kw.name, pattern: kw.pattern, regex: kw.regex, count: matchedLines.length, lines: matchedLines };
-        });
-
-        // 统计
-        const totalHits = results.reduce((s, r) => s + r.count, 0);
-        const matchedKws = results.filter(r => r.count > 0).length;
-        document.getElementById('statTotal').textContent = logLines.length.toLocaleString();
-        document.getElementById('statKeywords').textContent = matchedKws;
-        document.getElementById('statHits').textContent = totalHits.toLocaleString();
-        document.getElementById('statRate').textContent = logLines.length > 0 ? ((totalHits / logLines.length) * 100).toFixed(2) + '%' : '0%';
-        document.getElementById('statsArea').classList.remove('hidden');
-
-        renderCharts(results);
-        renderDetails(results);
-        document.getElementById('chartsArea').classList.remove('hidden');
-        document.getElementById('detailArea').classList.remove('hidden');
-    }
-
-    function escapeRegExp(s) {
-        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    function renderCharts(data) {
-        const chartData = data.filter(d => d.count > 0);
-        const labels = chartData.map(d => d.name);
-        const values = chartData.map(d => d.count);
-        const palette = [
-            'rgba(59,130,246,0.8)','rgba(168,85,247,0.8)','rgba(16,185,129,0.8)','rgba(245,158,11,0.8)',
-            'rgba(244,63,94,0.8)','rgba(6,182,212,0.8)','rgba(236,72,153,0.8)','rgba(99,102,241,0.8)',
-            'rgba(20,184,166,0.8)','rgba(249,115,22,0.8)'
-        ];
-        const borderPalette = palette.map(c => c.replace('0.8', '1'));
-
-        // Pie
-        const pieCtx = document.getElementById('pieChart').getContext('2d');
-        if (pieChartInst) pieChartInst.destroy();
-        pieChartInst = new Chart(pieCtx, {
-            type: 'pie',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: values,
-                    backgroundColor: palette.slice(0, labels.length),
-                    borderColor: '#1e293b',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 12 }, boxWidth: 14 } },
-                    tooltip: {
-                        backgroundColor: 'rgba(15,23,42,0.95)',
-                        titleColor: '#e2e8f0',
-                        bodyColor: '#94a3b8',
-                        borderColor: 'rgba(255,255,255,0.08)',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: function(ctx) {
-                                const total = ctx.dataset.data.reduce((a,b) => a+b, 0);
-                                const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : 0;
-                                return ` ${ctx.label}: ${ctx.raw} (${pct}%)`;
-                            }
-                        }
-                    }
+        let completed = 0;
+        validFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+                filesData.push({ name: file.name, size: file.size, lineCount: lines.length, lines: lines, results: [] });
+                completed++;
+                if (completed === validFiles.length) {
+                    renderFileList();
+                    if (keywords.length > 0) analyzeAll();
                 }
-            }
-        });
-
-        // Bar
-        const barCtx = document.getElementById('barChart').getContext('2d');
-        if (barChartInst) barChartInst.destroy();
-        barChartInst = new Chart(barCtx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: '命中次数',
-                    data: values,
-                    backgroundColor: palette.slice(0, labels.length),
-                    borderColor: borderPalette.slice(0, labels.length),
-                    borderWidth: 1,
-                    borderRadius: 6,
-                    barPercentage: 0.6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(15,23,42,0.95)',
-                        titleColor: '#e2e8f0',
-                        bodyColor: '#94a3b8',
-                        borderColor: 'rgba(255,255,255,0.08)',
-                        borderWidth: 1
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#94a3b8', font: { size: 11 } },
-                        grid: { color: 'rgba(255,255,255,0.04)' }
-                    },
-                    y: {
-                        ticks: { color: '#94a3b8', font: { size: 11 } },
-                        grid: { color: 'rgba(255,255,255,0.04)' },
-                        beginAtZero: true
-                    }
-                }
-            }
+            };
+            reader.readAsText(file);
         });
     }
 
-    function renderDetails(data) {
-        const container = document.getElementById('detailList');
+    function renderFileList() {
+        const container = document.getElementById('fileList');
         container.innerHTML = '';
-        data.forEach(item => {
+        filesData.forEach((f, i) => {
             const div = document.createElement('div');
-            div.className = 'p-3';
-            const badgeColor = item.count > 0 ? 'bg-blue-600/20 text-blue-400 border-blue-600/30' : 'bg-slate-800 text-slate-500 border-slate-700';
-            const linesHtml = item.lines.map(l => `<div class="text-xs text-slate-400 font-mono py-1 pl-3 border-l-2 border-slate-700"><span class="text-slate-600 mr-2">#${l.idx}</span>${escapeHtml(l.line.substring(0, 300))}${l.line.length > 300 ? '...' : ''}</div>`).join('');
+            div.className = 'flex items-center justify-between px-3 py-2 text-sm';
             div.innerHTML = `
-                <div class="flex items-center justify-between cursor-pointer" onclick="toggleDetail(this)">
-                    <div class="flex items-center gap-3">
-                        <span class="px-2 py-0.5 rounded text-xs border ${badgeColor} font-medium">${escapeHtml(item.name)}</span>
-                        <span class="text-sm text-slate-300">${escapeHtml(item.pattern)} ${item.regex ? '<span class="text-slate-500 text-xs">[正则]</span>' : ''}</span>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-lg font-bold ${item.count > 0 ? 'text-white' : 'text-slate-600'}">${item.count}</span>
-                        <i class="fas fa-chevron-down text-slate-500 text-xs transition-transform detail-arrow"></i>
-                    </div>
+                <div class="flex items-center gap-2 min-w-0">
+                    <i class="fas fa-file-alt text-slate-500 text-xs"></i>
+                    <span class="text-slate-300 truncate" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+                    <span class="text-xs text-slate-600">${formatSize(f.size)}</span>
                 </div>
-                <div class="detail-lines mt-2 hidden space-y-1">${linesHtml || '<div class="text-xs text-slate-600 pl-3">无匹配</div>'}</div>
+                <span class="text-xs text-slate-500 whitespace-nowrap">${f.lineCount.toLocaleString()} 行</span>
             `;
             container.appendChild(div);
         });
+        document.getElementById('fileCountBadge').textContent = filesData.length;
+        document.getElementById('fileListArea').classList.remove('hidden');
     }
 
-    window.toggleDetail = function(header) {
-        const lines = header.nextElementSibling;
-        const arrow = header.querySelector('.detail-arrow');
-        lines.classList.toggle('hidden');
-        arrow.style.transform = lines.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    window.clearFiles = function() {
+        filesData = [];
+        document.getElementById('fileList').innerHTML = '';
+        document.getElementById('fileListArea').classList.add('hidden');
+        document.getElementById('resultArea').classList.add('hidden');
     };
 
-    window.expandAllDetails = function() {
-        document.querySelectorAll('.detail-lines').forEach(el => el.classList.remove('hidden'));
-        document.querySelectorAll('.detail-arrow').forEach(el => el.style.transform = 'rotate(180deg)');
+    function analyzeAll() {
+        if (keywords.length === 0 || filesData.length === 0) return;
+
+        filesData.forEach(fd => {
+            fd.results = keywords.map((kw, kwIdx) => {
+                let regex;
+                try {
+                    regex = kw.regex ? new RegExp(kw.pattern, 'i') : new RegExp(escapeRegExp(kw.pattern), 'i');
+                } catch {
+                    regex = new RegExp(escapeRegExp(kw.pattern), 'i');
+                }
+                const matched = [];
+                fd.lines.forEach((line, lineIdx) => {
+                    if (regex.test(line)) matched.push({ idx: lineIdx + 1, line: line.trim() });
+                });
+                return { kwIdx, count: matched.length, lines: matched };
+            });
+        });
+
+        renderTable();
+        document.getElementById('resultArea').classList.remove('hidden');
+    }
+
+    function renderTable() {
+        const thead = document.getElementById('resultThead');
+        const tbody = document.getElementById('resultTbody');
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+
+        // 表头
+        const thFile = document.createElement('th');
+        thFile.className = 'px-4 py-3 font-medium sticky left-0 bg-slate-900/80 z-20';
+        thFile.textContent = '文件名';
+        thead.appendChild(thFile);
+
+        keywords.forEach((kw, i) => {
+            const th = document.createElement('th');
+            th.className = 'px-3 py-3 font-medium text-center whitespace-nowrap';
+            th.innerHTML = `<span class="inline-block px-2 py-0.5 rounded text-[10px] text-white ${['bg-blue-600','bg-purple-600','bg-emerald-600','bg-amber-600','bg-rose-600','bg-cyan-600','bg-pink-600','bg-indigo-600','bg-teal-600','bg-orange-600'][i % 10]}">${escapeHtml(kw.name)}</span>`;
+            thead.appendChild(th);
+        });
+
+        const thTotal = document.createElement('th');
+        thTotal.className = 'px-3 py-3 font-medium text-center';
+        thTotal.textContent = '合计';
+        thead.appendChild(thTotal);
+
+        // 表体
+        filesData.forEach((fd, fileIdx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-800/40 transition-colors';
+
+            const tdFile = document.createElement('td');
+            tdFile.className = 'px-4 py-3 font-medium text-slate-200 sticky left-0 bg-slate-900/60 z-10 whitespace-nowrap';
+            tdFile.innerHTML = `<div class="flex items-center gap-2"><i class="fas fa-file-alt text-slate-600 text-xs"></i><span>${escapeHtml(fd.name)}</span></div>`;
+            tr.appendChild(tdFile);
+
+            let rowTotal = 0;
+            fd.results.forEach((res, kwIdx) => {
+                const td = document.createElement('td');
+                td.className = 'px-3 py-3 text-center';
+                if (res.count > 0) {
+                    td.innerHTML = `<button onclick="showDetail(${fileIdx}, ${kwIdx})" class="text-blue-400 hover:text-blue-300 font-bold underline underline-offset-2 decoration-blue-400/30">${res.count}</button>`;
+                } else {
+                    td.innerHTML = `<span class="text-slate-600">0</span>`;
+                }
+                tr.appendChild(td);
+                rowTotal += res.count;
+            });
+
+            const tdTotal = document.createElement('td');
+            tdTotal.className = 'px-3 py-3 text-center font-bold text-white';
+            tdTotal.textContent = rowTotal;
+            tr.appendChild(tdTotal);
+
+            tbody.appendChild(tr);
+        });
+
+        // 合计行
+        const trSum = document.createElement('tr');
+        trSum.className = 'bg-slate-800/60 font-bold border-t border-slate-700';
+        const tdSumLabel = document.createElement('td');
+        tdSumLabel.className = 'px-4 py-3 text-slate-300 sticky left-0 bg-slate-800/60 z-10';
+        tdSumLabel.textContent = '总计';
+        trSum.appendChild(tdSumLabel);
+
+        let grandTotal = 0;
+        keywords.forEach((_, kwIdx) => {
+            const sum = filesData.reduce((s, fd) => s + fd.results[kwIdx].count, 0);
+            const td = document.createElement('td');
+            td.className = 'px-3 py-3 text-center text-slate-200';
+            td.textContent = sum;
+            trSum.appendChild(td);
+            grandTotal += sum;
+        });
+
+        const tdGrand = document.createElement('td');
+        tdGrand.className = 'px-3 py-3 text-center text-emerald-400';
+        tdGrand.textContent = grandTotal;
+        trSum.appendChild(tdGrand);
+        tbody.appendChild(trSum);
+    }
+
+    window.showDetail = function(fileIdx, kwIdx) {
+        const fd = filesData[fileIdx];
+        const res = fd.results[kwIdx];
+        const kw = keywords[kwIdx];
+        document.getElementById('detailModalTitle').textContent = `${escapeHtml(fd.name)} — ${escapeHtml(kw.name)}`;
+        document.getElementById('detailModalSubtitle').textContent = `匹配 "${kw.pattern}"${kw.regex ? ' (正则)' : ''}，共 ${res.count} 条`;
+        const content = document.getElementById('detailModalContent');
+        content.innerHTML = '';
+        if (res.lines.length === 0) {
+            content.innerHTML = '<div class="text-slate-500 text-sm">无匹配记录</div>';
+        } else {
+            res.lines.forEach(l => {
+                const div = document.createElement('div');
+                div.className = 'text-xs text-slate-300 font-mono py-1.5 px-2 rounded hover:bg-slate-800/60 border-l-2 border-slate-700';
+                div.innerHTML = `<span class="text-slate-500 mr-2 select-none">#${l.idx}</span>${escapeHtml(l.line.substring(0, 500))}${l.line.length > 500 ? '...' : ''}`;
+                content.appendChild(div);
+            });
+        }
+        document.getElementById('detailModal').classList.remove('hidden');
+        document.getElementById('detailModal').classList.add('flex');
     };
 
-    window.collapseAllDetails = function() {
-        document.querySelectorAll('.detail-lines').forEach(el => el.classList.add('hidden'));
-        document.querySelectorAll('.detail-arrow').forEach(el => el.style.transform = 'rotate(0deg)');
+    window.closeDetailModal = function() {
+        document.getElementById('detailModal').classList.add('hidden');
+        document.getElementById('detailModal').classList.remove('flex');
+    };
+
+    window.exportCSV = function() {
+        if (filesData.length === 0) return;
+        let csv = '\uFEFF文件名,' + keywords.map(k => k.name).join(',') + ',合计\n';
+        filesData.forEach(fd => {
+            csv += fd.name + ',';
+            csv += fd.results.map(r => r.count).join(',');
+            csv += ',' + fd.results.reduce((s, r) => s + r.count, 0) + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'log_analysis_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.csv';
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     // 初始化
