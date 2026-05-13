@@ -979,12 +979,16 @@ class UserSettingsView(LoginRequiredMixin, View):
 @login_required
 def api_test_items(request):
     """获取测试项列表（用于日志分析工具关联）"""
-    q = request.GET.get('q', '').strip()
-    queryset = TestItem.objects.select_related('project').order_by('-created_at')[:100]
-    if q:
-        queryset = TestItem.objects.select_related('project').filter(
-            Q(test_number__icontains=q) | Q(project__name__icontains=q)
-        ).order_by('-created_at')[:100]
+    target_id = request.GET.get('id', '').strip()
+    if target_id:
+        queryset = TestItem.objects.select_related('project').filter(pk=int(target_id))
+    else:
+        q = request.GET.get('q', '').strip()
+        queryset = TestItem.objects.select_related('project').order_by('-created_at')[:100]
+        if q:
+            queryset = TestItem.objects.select_related('project').filter(
+                Q(test_number__icontains=q) | Q(project__name__icontains=q)
+            ).order_by('-created_at')[:100]
     data = [{
         'id': t.id,
         'test_number': t.test_number,
@@ -997,12 +1001,16 @@ def api_test_items(request):
 @login_required
 def api_abnormal_samples(request):
     """获取异常样品列表（用于日志分析工具关联）"""
-    q = request.GET.get('q', '').strip()
-    queryset = AbnormalSample.objects.select_related('customer').order_by('-created_at')[:100]
-    if q:
-        queryset = AbnormalSample.objects.select_related('customer').filter(
-            Q(sample_number__icontains=q) | Q(customer__customer_code__icontains=q)
-        ).order_by('-created_at')[:100]
+    target_id = request.GET.get('id', '').strip()
+    if target_id:
+        queryset = AbnormalSample.objects.select_related('customer').filter(pk=int(target_id))
+    else:
+        q = request.GET.get('q', '').strip()
+        queryset = AbnormalSample.objects.select_related('customer').order_by('-created_at')[:100]
+        if q:
+            queryset = AbnormalSample.objects.select_related('customer').filter(
+                Q(sample_number__icontains=q) | Q(customer__customer_code__icontains=q)
+            ).order_by('-created_at')[:100]
     data = [{
         'id': a.id,
         'sample_number': a.sample_number,

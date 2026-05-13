@@ -163,6 +163,10 @@
                     <span class="text-sm text-slate-400">{{ request.user.get_full_name|default:request.user.username }}</span>
                 </div>
                 <div class="flex justify-end mt-3">
+                    <a href="{% url 'log_analyzer' %}?target_type=test&target_id={{ test.pk }}" class="mr-2 px-4 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 text-sm flex items-center gap-2">
+                        <i class="fas fa-file-alt text-xs"></i>
+                        <span>日志分析</span>
+                    </a>
                     <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm flex items-center gap-2">
                         <i class="fas fa-paper-plane text-xs"></i>
                         <span>发表</span>
@@ -180,6 +184,10 @@
                 {% endif %}
                 <div class="flex-1">
                     <div class="flex justify-end">
+                        <a href="{% url 'log_analyzer' %}?target_type=test&target_id={{ test.pk }}" class="mr-2 px-6 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600/30 transition-colors flex items-center gap-2 text-sm">
+                            <i class="fas fa-file-alt text-xs"></i>
+                            <span>日志分析</span>
+                        </a>
                         <button type="submit" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors flex items-center gap-2 text-sm">
                             <i class="fas fa-paper-plane text-xs"></i>
                             <span>发表评论</span>

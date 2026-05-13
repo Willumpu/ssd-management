@@ -489,6 +489,36 @@
         document.getElementById('targetSelect').innerHTML = '<option value="">-- 请先搜索 --</option>';
         document.getElementById('reportSubmitMsg').className = 'text-sm hidden';
         document.getElementById('reportSubmitMsg').textContent = '';
+
+        // 检测 URL 参数预填
+        const urlParams = new URLSearchParams(window.location.search);
+        const prefillType = urlParams.get('target_type');
+        const prefillId = urlParams.get('target_id');
+        if (prefillType && prefillId) {
+            const radios = document.querySelectorAll('input[name="targetType"]');
+            radios.forEach(r => { r.checked = (r.value === prefillType); });
+            onTargetTypeChange();
+            // 通过 API 加载并选中条目
+            const apiUrl = prefillType === 'test' ? '/api/test-items/?id=' + prefillId : '/api/abnormal-samples/?id=' + prefillId;
+            fetch(apiUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(data => {
+                    const select = document.getElementById('targetSelect');
+                    select.innerHTML = '';
+                    if (data.items && data.items.length > 0) {
+                        const item = data.items[0];
+                        const opt = document.createElement('option');
+                        opt.value = item.id;
+                        if (prefillType === 'test') {
+                            opt.textContent = item.test_number + ' | ' + item.project + ' | ' + item.status;
+                        } else {
+                            opt.textContent = item.sample_number + ' | ' + item.customer + ' | ' + item.status;
+                        }
+                        select.appendChild(opt);
+                    }
+                });
+        }
+
         document.getElementById('reportModal').classList.remove('hidden');
         document.getElementById('reportModal').classList.add('flex');
     };
