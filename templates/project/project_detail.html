@@ -288,16 +288,16 @@
         </div>
         <div id="section-test-items" class="divide-y divide-slate-800">
             {% for test in test_items %}
-            <a href="{% url 'testing:test_detail' test.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm text-white font-medium">{{ test.test_number }}</span>
+                    <a href="{% url 'testing:test_detail' test.pk %}" class="text-sm text-white font-medium hover:underline">{{ test.test_number }}</a>
                     <span class="text-xs text-slate-500">{{ test.get_test_content_display }}</span>
                     <span class="ml-auto px-2 py-0.5 rounded text-xs border whitespace-nowrap
                         {% if test.status == 'in_progress' %}bg-green-500/20 text-green-400 border-green-500/30{% elif test.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif test.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
                         {{ test.get_status_display }}
                     </span>
                 </div>
-                <div class="flex items-center gap-3 mt-2 flex-wrap text-xs">
+                <div class="flex items-center gap-3 mt-2 flex-wrap text-xs" onclick="event.stopPropagation()">
                     <span class="text-slate-400">方案：<span class="text-slate-300">{{ test.solution.solution_number|default:'-' }}</span></span>
                     <span class="text-slate-500">|</span>
                     <span class="text-slate-400">总数：<span class="text-white font-medium">{{ test.total_samples }}</span></span>
@@ -311,10 +311,10 @@
                     {% endif %}
                     {% if test.fae_tasks.exists %}
                     <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline">{{ task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline" onclick="event.stopPropagation()">{{ task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
                     {% endif %}
                 </div>
-            </a>
+            </div>
             {% endfor %}
         </div>
     </div>
