@@ -55,7 +55,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
         # 各模块关联数据
         context['fae_tasks'] = project.fae_tasks.select_related('customer', 'assignee').all()[:50]
-        context['test_items'] = project.test_items.select_related('customer', 'tracker').all()[:50]
+        context['test_items'] = project.test_items.select_related('customer', 'tracker').prefetch_related('fae_tasks').all()[:50]
+        for test in context['test_items']:
+            if test.status == 'completed' and test.total_samples > 0:
+                test.yield_rate = round(test.passed_samples / test.total_samples * 100, 1)
+            else:
+                test.yield_rate = None
         context['abnormal_samples'] = project.abnormal_samples.select_related('customer', 'assignee').all()[:50]
         context['solutions'] = project.solutions.select_related('created_by').all()[:50]
         context['rd_requirements'] = project.rd_requirements.select_related('assignee').all()[:50]
