@@ -311,7 +311,7 @@
                     {% endif %}
                     {% if test.fae_tasks.exists %}
                     <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline" onclick="event.stopPropagation()">{{ task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline" onclick="event.stopPropagation()">{{ task.summary|default:task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
                     {% endif %}
                 </div>
             </div>
