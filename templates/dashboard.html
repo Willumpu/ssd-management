@@ -39,7 +39,7 @@
                         <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
                             <span class="text-slate-400">类型：{{ task.get_task_type_display }}</span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
+                            <span class="text-slate-400">负责人：{% if task.assignee %}{{ task.assignee.get_full_name|default:task.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ task.created_at|date:'m-d H:i' }}</span>
                         </div>
@@ -65,7 +65,7 @@
                         <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
                             <span class="text-slate-400">类型：{{ task.get_task_type_display }}</span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
+                            <span class="text-slate-400">负责人：{% if task.assignee %}{{ task.assignee.get_full_name|default:task.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ task.created_at|date:'m-d H:i' }}</span>
                         </div>
@@ -91,7 +91,7 @@
                         <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
                             <span class="text-slate-400">类型：{{ task.get_task_type_display }}</span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
+                            <span class="text-slate-400">负责人：{% if task.assignee %}{{ task.assignee.get_full_name|default:task.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ task.created_at|date:'m-d H:i' }}</span>
                         </div>
@@ -240,7 +240,7 @@
                                 {% endif %}
                             </span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ sample.assignee.get_full_name|default:sample.assignee.username|default:'-' }}</span>
+                            <span class="text-slate-400">负责人：{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ sample.created_at|date:'m-d H:i' }}</span>
                         </div>
@@ -271,7 +271,7 @@
                                 {% endif %}
                             </span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ sample.assignee.get_full_name|default:sample.assignee.username|default:'-' }}</span>
+                            <span class="text-slate-400">负责人：{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ sample.created_at|date:'m-d H:i' }}</span>
                         </div>
@@ -302,7 +302,7 @@
                                 {% endif %}
                             </span>
                             <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{{ sample.assignee.get_full_name|default:sample.assignee.username|default:'-' }}</span>
+                            <span class="text-slate-400">负责人：{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
                             <span class="text-slate-500">|</span>
                             <span class="text-slate-400">创建：{{ sample.created_at|date:'m-d H:i' }}</span>
                         </div>
