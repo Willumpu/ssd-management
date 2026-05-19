@@ -71,7 +71,7 @@ class DashboardView(LoginRequiredMixin, View):
         if since_str:
             try:
                 since_date = datetime.strptime(since_str, '%Y-%m-%d').date()
-                since = timezone.make_aware(datetime.combine(since_date, datetime.min.time()))
+                since = datetime.combine(since_date, datetime.min.time())
             except ValueError:
                 since = now - timedelta(days=7)
         else:
