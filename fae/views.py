@@ -65,13 +65,23 @@ class DashboardView(LoginRequiredMixin, View):
     def get(self, request):
         user = request.user
         now = timezone.now()
-        day_ago = now - timedelta(days=1)
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
+
+        # 获取截至时间参数，默认7天前
+        since_str = request.GET.get('since', '')
+        if since_str:
+            try:
+                since_date = datetime.strptime(since_str, '%Y-%m-%d').date()
+                since = timezone.make_aware(datetime.combine(since_date, datetime.min.time()))
+            except ValueError:
+                since = now - timedelta(days=7)
+        else:
+            since = now - timedelta(days=7)
 
         context = {
             'user': user,
             'now': now,
+            'since_date': since.date(),
+            'since_str': since.strftime('%Y-%m-%d'),
         }
 
         def _annotate_yield(tests):
@@ -80,22 +90,18 @@ class DashboardView(LoginRequiredMixin, View):
             return tests
 
         # FAE 任务
-        fae_qs = FAETask.objects.select_related('customer', 'assignee').order_by('-created_at')
-        context['fae_tasks_day'] = fae_qs.filter(created_at__gte=day_ago)[:50]
-        context['fae_tasks_week'] = fae_qs.filter(created_at__gte=week_ago)[:50]
-        context['fae_tasks_month'] = fae_qs.filter(created_at__gte=month_ago)[:50]
+        fae_qs = FAETask.objects.select_related('customer', 'assignee').filter(created_at__gte=since).order_by('-created_at')
+        context['fae_tasks'] = fae_qs[:50]
 
         # 测试跟踪
-        test_qs = TestItem.objects.select_related('customer', 'tracker', 'solution').prefetch_related('fae_tasks').order_by('-created_at')
-        context['test_items_day'] = _annotate_yield(list(test_qs.filter(created_at__gte=day_ago)[:50]))
-        context['test_items_week'] = _annotate_yield(list(test_qs.filter(created_at__gte=week_ago)[:50]))
-        context['test_items_month'] = _annotate_yield(list(test_qs.filter(created_at__gte=month_ago)[:50]))
+        test_qs = TestItem.objects.select_related('customer', 'tracker', 'solution').prefetch_related('fae_tasks').filter(created_at__gte=since).order_by('-created_at')
+        context['test_items'] = _annotate_yield(list(test_qs[:50]))
 
         # 异常样品
-        abnormal_qs = AbnormalSample.objects.select_related('customer', 'assignee').order_by('-created_at')
-        context['abnormal_samples_day'] = abnormal_qs.filter(created_at__gte=day_ago)[:50]
-        context['abnormal_samples_week'] = abnormal_qs.filter(created_at__gte=week_ago)[:50]
-        context['abnormal_samples_month'] = abnormal_qs.filter(created_at__gte=month_ago)[:50]
+        abnormal_qs = AbnormalSample.objects.select_related('customer', 'assignee').filter(created_at__gte=since).order_by('-created_at')
+        context['abnormal_samples'] = abnormal_qs[:50]
+
+        context['total_count'] = len(context['fae_tasks']) + len(context['test_items']) + len(context['abnormal_samples'])
 
         return render(request, self.template_name, context)
     

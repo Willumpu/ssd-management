@@ -5,82 +5,32 @@
 
 {% block content %}
 <div class="space-y-6 animate-slide-in">
-    <!-- 时间筛选 -->
-    <div class="glass rounded-xl p-4 border border-slate-700/50 flex flex-wrap gap-2">
-        <button onclick="switchRange('day')" id="tab-day" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white transition-colors">
-            最近一天 <span class="text-xs opacity-70">({{ fae_tasks_day|length }})</span>
+    <!-- 截至时间筛选 -->
+    <div class="glass rounded-xl p-4 border border-slate-700/50 flex flex-wrap items-center gap-3">
+        <label class="text-sm text-slate-400">显示创建于</label>
+        <input type="date" id="sinceInput" value="{{ since_str }}" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50">
+        <label class="text-sm text-slate-400">之后的条目</label>
+        <button onclick="applyFilter()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            <i class="fas fa-filter mr-1"></i>筛选
         </button>
-        <button onclick="switchRange('week')" id="tab-week" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors">
-            最近一周 <span class="text-xs opacity-70">({{ fae_tasks_week|length }})</span>
-        </button>
-        <button onclick="switchRange('month')" id="tab-month" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors">
-            最近一月 <span class="text-xs opacity-70">({{ fae_tasks_month|length }})</span>
-        </button>
+        <span class="text-xs text-slate-500 ml-auto">共 {{ total_count }} 条</span>
     </div>
 
     <!-- FAE任务 -->
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleDashPanel('fae-tasks')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-tasks text-blue-400 text-sm"></i>
                 FAE任务
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ fae_tasks|length }}</span>
             </h3>
-            <a href="{% url 'fae:task_list' %}" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">查看全部</a>
-        </div>
-        <div data-range="day" class="divide-y divide-slate-800">
-            {% for task in fae_tasks_day %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm text-white font-medium">{{ task.task_number }}</span>
-                            <span class="text-xs text-slate-500">{{ task.customer.customer_code }}</span>
-                        </div>
-                        <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                            <span class="text-slate-400">类型：{{ task.get_task_type_display }}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{% if task.assignee %}{{ task.assignee.get_full_name|default:task.assignee.username }}{% else %}-{% endif %}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">创建：{{ task.created_at|date:'m-d H:i' }}</span>
-                        </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-xs border whitespace-nowrap ml-2 {% if task.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% elif task.status == 'in_progress' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif task.status == 'pending_review' %}bg-purple-500/20 text-purple-400 border-purple-500/30{% elif task.status == 'completed' %}bg-green-500/20 text-green-400 border-green-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ task.get_status_display }}
-                    </span>
-                </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'fae:task_list' %}" class="text-xs text-blue-400 hover:text-blue-300 transition-colors" onclick="event.stopPropagation()">查看全部</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-fae-tasks"></i>
             </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
         </div>
-        <div data-range="week" class="divide-y divide-slate-800 hidden">
-            {% for task in fae_tasks_week %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm text-white font-medium">{{ task.task_number }}</span>
-                            <span class="text-xs text-slate-500">{{ task.customer.customer_code }}</span>
-                        </div>
-                        <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                            <span class="text-slate-400">类型：{{ task.get_task_type_display }}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{% if task.assignee %}{{ task.assignee.get_full_name|default:task.assignee.username }}{% else %}-{% endif %}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">创建：{{ task.created_at|date:'m-d H:i' }}</span>
-                        </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-xs border whitespace-nowrap ml-2 {% if task.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% elif task.status == 'in_progress' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif task.status == 'pending_review' %}bg-purple-500/20 text-purple-400 border-purple-500/30{% elif task.status == 'completed' %}bg-green-500/20 text-green-400 border-green-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ task.get_status_display }}
-                    </span>
-                </div>
-            </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
-        </div>
-        <div data-range="month" class="divide-y divide-slate-800 hidden">
-            {% for task in fae_tasks_month %}
+        <div id="panel-fae-tasks" class="divide-y divide-slate-800">
+            {% for task in fae_tasks %}
             <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
                 <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
@@ -109,79 +59,19 @@
 
     <!-- 测试跟踪 -->
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleDashPanel('test-items')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-vial text-cyan-400 text-sm"></i>
                 测试跟踪
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ test_items|length }}</span>
             </h3>
-            <a href="{% url 'testing:test_list' %}" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">查看全部</a>
-        </div>
-        <div data-range="day" class="divide-y divide-slate-800">
-            {% for test in test_items_day %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm text-white font-medium">{{ test.test_number }}</span>
-                    <span class="text-xs text-slate-500">{{ test.get_test_content_display }}</span>
-                    <span class="ml-auto px-2 py-0.5 rounded text-xs border whitespace-nowrap {% if test.status == 'in_progress' %}bg-green-500/20 text-green-400 border-green-500/30{% elif test.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif test.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ test.get_status_display }}
-                    </span>
-                </div>
-                <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                    <span class="text-slate-400">方案：<span class="text-slate-300">{{ test.solution.solution_number|default:'-' }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">总数：<span class="text-white font-medium">{{ test.total_samples }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">异常：<span class="text-red-400 font-medium">{{ test.abnormal_samples_count }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">通过：<span class="text-green-400 font-medium">{{ test.passed_samples }}</span></span>
-                    {% if test.yield_rate is not None %}
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">良率：<span class="text-emerald-400 font-bold">{{ test.yield_rate }}%</span></span>
-                    {% endif %}
-                    {% if test.fae_tasks.exists %}
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline" onclick="event.stopPropagation()">{{ task.summary|default:task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
-                    {% endif %}
-                </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'testing:test_list' %}" class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors" onclick="event.stopPropagation()">查看全部</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-test-items"></i>
             </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
         </div>
-        <div data-range="week" class="divide-y divide-slate-800 hidden">
-            {% for test in test_items_week %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm text-white font-medium">{{ test.test_number }}</span>
-                    <span class="text-xs text-slate-500">{{ test.get_test_content_display }}</span>
-                    <span class="ml-auto px-2 py-0.5 rounded text-xs border whitespace-nowrap {% if test.status == 'in_progress' %}bg-green-500/20 text-green-400 border-green-500/30{% elif test.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif test.status == 'not_started' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ test.get_status_display }}
-                    </span>
-                </div>
-                <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                    <span class="text-slate-400">方案：<span class="text-slate-300">{{ test.solution.solution_number|default:'-' }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">总数：<span class="text-white font-medium">{{ test.total_samples }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">异常：<span class="text-red-400 font-medium">{{ test.abnormal_samples_count }}</span></span>
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">通过：<span class="text-green-400 font-medium">{{ test.passed_samples }}</span></span>
-                    {% if test.yield_rate is not None %}
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">良率：<span class="text-emerald-400 font-bold">{{ test.yield_rate }}%</span></span>
-                    {% endif %}
-                    {% if test.fae_tasks.exists %}
-                    <span class="text-slate-500">|</span>
-                    <span class="text-slate-400">FAE任务：{% for task in test.fae_tasks.all %}<a href="{% url 'fae:task_detail' task.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline" onclick="event.stopPropagation()">{{ task.summary|default:task.task_number }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
-        </div>
-        <div data-range="month" class="divide-y divide-slate-800 hidden">
-            {% for test in test_items_month %}
+        <div id="panel-test-items" class="divide-y divide-slate-800">
+            {% for test in test_items %}
             <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-sm text-white font-medium">{{ test.test_number }}</span>
@@ -216,77 +106,19 @@
 
     <!-- 异常样品 -->
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleDashPanel('abnormal-samples')">
             <h3 class="font-semibold text-white flex items-center gap-2">
                 <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
                 异常样品
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ abnormal_samples|length }}</span>
             </h3>
-            <a href="{% url 'abnormal:abnormal_list' %}" class="text-xs text-red-400 hover:text-red-300 transition-colors">查看全部</a>
-        </div>
-        <div data-range="day" class="divide-y divide-slate-800">
-            {% for sample in abnormal_samples_day %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'abnormal:abnormal_detail' sample.pk %}'">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm text-white font-medium">{{ sample.sample_number }}</span>
-                            <span class="text-xs text-slate-500">{{ sample.customer.customer_code }}</span>
-                        </div>
-                        <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                            <span class="text-slate-400">优先级：
-                                {% if sample.priority == 'urgent' %}<span class="text-red-400">紧急</span>
-                                {% elif sample.priority == 'high' %}<span class="text-orange-400">高</span>
-                                {% else %}<span class="text-blue-400">一般</span>
-                                {% endif %}
-                            </span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">创建：{{ sample.created_at|date:'m-d H:i' }}</span>
-                        </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-xs border whitespace-nowrap ml-2 {% if sample.status == 'pending_analysis' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% elif sample.status == 'retesting' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif sample.status == 'resolved' %}bg-green-500/20 text-green-400 border-green-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ sample.get_status_display }}
-                    </span>
-                </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'abnormal:abnormal_list' %}" class="text-xs text-red-400 hover:text-red-300 transition-colors" onclick="event.stopPropagation()">查看全部</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-abnormal-samples"></i>
             </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
         </div>
-        <div data-range="week" class="divide-y divide-slate-800 hidden">
-            {% for sample in abnormal_samples_week %}
-            <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'abnormal:abnormal_detail' sample.pk %}'">
-                <div class="flex justify-between items-start">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm text-white font-medium">{{ sample.sample_number }}</span>
-                            <span class="text-xs text-slate-500">{{ sample.customer.customer_code }}</span>
-                        </div>
-                        <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs">
-                            <span class="text-slate-400">优先级：
-                                {% if sample.priority == 'urgent' %}<span class="text-red-400">紧急</span>
-                                {% elif sample.priority == 'high' %}<span class="text-orange-400">高</span>
-                                {% else %}<span class="text-blue-400">一般</span>
-                                {% endif %}
-                            </span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">负责人：{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
-                            <span class="text-slate-500">|</span>
-                            <span class="text-slate-400">创建：{{ sample.created_at|date:'m-d H:i' }}</span>
-                        </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-xs border whitespace-nowrap ml-2 {% if sample.status == 'pending_analysis' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% elif sample.status == 'retesting' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif sample.status == 'resolved' %}bg-green-500/20 text-green-400 border-green-500/30{% else %}bg-slate-800 text-slate-300 border-slate-700{% endif %}">
-                        {{ sample.get_status_display }}
-                    </span>
-                </div>
-            </div>
-            {% empty %}
-            <div class="p-8 text-center text-slate-500 text-sm">该时间段暂无数据</div>
-            {% endfor %}
-        </div>
-        <div data-range="month" class="divide-y divide-slate-800 hidden">
-            {% for sample in abnormal_samples_month %}
+        <div id="panel-abnormal-samples" class="divide-y divide-slate-800">
+            {% for sample in abnormal_samples %}
             <div class="p-4 hover:bg-slate-800/30 transition-colors cursor-pointer" onclick="window.location.href='{% url 'abnormal:abnormal_detail' sample.pk %}'">
                 <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
@@ -320,20 +152,40 @@
 </div>
 
 <script>
-function switchRange(range) {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('bg-blue-600', 'text-white');
-        btn.classList.add('bg-slate-800', 'text-slate-300');
-    });
-    document.getElementById('tab-' + range).classList.remove('bg-slate-800', 'text-slate-300');
-    document.getElementById('tab-' + range).classList.add('bg-blue-600', 'text-white');
-
-    document.querySelectorAll('[data-range]').forEach(el => {
-        el.classList.add('hidden');
-    });
-    document.querySelectorAll('[data-range="' + range + '"]').forEach(el => {
-        el.classList.remove('hidden');
-    });
+function applyFilter() {
+    const since = document.getElementById('sinceInput').value;
+    if (since) {
+        window.location.href = '?since=' + encodeURIComponent(since);
+    }
 }
+
+function toggleDashPanel(id) {
+    const panel = document.getElementById('panel-' + id);
+    const icon = document.getElementById('icon-' + id);
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        icon.style.transform = 'rotate(0deg)';
+        localStorage.setItem('dash_panel_' + id, 'open');
+    } else {
+        panel.classList.add('hidden');
+        icon.style.transform = 'rotate(-90deg)';
+        localStorage.setItem('dash_panel_' + id, 'closed');
+    }
+}
+
+// 恢复折叠状态
+(function() {
+    ['fae-tasks', 'test-items', 'abnormal-samples'].forEach(function(id) {
+        const state = localStorage.getItem('dash_panel_' + id);
+        if (state === 'closed') {
+            const panel = document.getElementById('panel-' + id);
+            const icon = document.getElementById('icon-' + id);
+            if (panel) {
+                panel.classList.add('hidden');
+                icon.style.transform = 'rotate(-90deg)';
+            }
+        }
+    });
+})();
 </script>
 {% endblock %}
