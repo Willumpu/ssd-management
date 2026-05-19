@@ -64,25 +64,39 @@ class DashboardView(LoginRequiredMixin, View):
     
     def get(self, request):
         user = request.user
+        now = timezone.now()
+        day_ago = now - timedelta(days=1)
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+
         context = {
             'user': user,
-            'now': timezone.now(),
+            'now': now,
         }
-        
-        # 根据用户角色获取不同的数据
-        if user.role in ['fae', 'fae_leader']:
-            context.update(self._get_fae_dashboard(user))
-        elif user.role in ['rd', 'rd_leader']:
-            context.update(self._get_rd_dashboard(user))
-        elif user.role == 'warehouse':
-            context.update(self._get_warehouse_dashboard(user))
-        else:
-            context.update(self._get_admin_dashboard(user))
-        
-        # 获取所有用户的通用数据 - 最近动态
-        context['recent_activities'] = self._get_recent_activities(user)
-        context['unread_notifications'] = self._get_unread_notifications(user)
-        
+
+        def _annotate_yield(tests):
+            for t in tests:
+                t.yield_rate = round(t.passed_samples / t.total_samples * 100, 1) if t.status == 'completed' and t.total_samples > 0 else None
+            return tests
+
+        # FAE 任务
+        fae_qs = FAETask.objects.select_related('customer', 'assignee').order_by('-created_at')
+        context['fae_tasks_day'] = fae_qs.filter(created_at__gte=day_ago)[:50]
+        context['fae_tasks_week'] = fae_qs.filter(created_at__gte=week_ago)[:50]
+        context['fae_tasks_month'] = fae_qs.filter(created_at__gte=month_ago)[:50]
+
+        # 测试跟踪
+        test_qs = TestItem.objects.select_related('customer', 'tracker', 'solution').prefetch_related('fae_tasks').order_by('-created_at')
+        context['test_items_day'] = _annotate_yield(list(test_qs.filter(created_at__gte=day_ago)[:50]))
+        context['test_items_week'] = _annotate_yield(list(test_qs.filter(created_at__gte=week_ago)[:50]))
+        context['test_items_month'] = _annotate_yield(list(test_qs.filter(created_at__gte=month_ago)[:50]))
+
+        # 异常样品
+        abnormal_qs = AbnormalSample.objects.select_related('customer', 'assignee').order_by('-created_at')
+        context['abnormal_samples_day'] = abnormal_qs.filter(created_at__gte=day_ago)[:50]
+        context['abnormal_samples_week'] = abnormal_qs.filter(created_at__gte=week_ago)[:50]
+        context['abnormal_samples_month'] = abnormal_qs.filter(created_at__gte=month_ago)[:50]
+
         return render(request, self.template_name, context)
     
     def _get_fae_dashboard(self, user):
