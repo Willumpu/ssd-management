@@ -16,6 +16,10 @@
         </div>
         <!-- 搜索和新建 -->
         <div class="flex gap-2">
+            <a href="{% url 'fae:daily_report' %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm font-medium whitespace-nowrap flex items-center gap-2">
+                <i class="fas fa-file-alt"></i>
+                <span class="hidden lg:inline">日报</span>
+            </a>
             <form method="get" class="flex gap-2 flex-1 lg:flex-none">
                 <input type="text" name="search" value="{{ request.GET.search }}" placeholder="搜索工单号/客户..." 
                        class="bg-slate-800 border border-slate-700 rounded-lg px-3 lg:px-4 py-2 text-sm focus:outline-none focus:border-blue-500 flex-1 lg:w-64">

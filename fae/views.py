@@ -940,6 +940,75 @@ class FAETaskCommentDeleteView(LoginRequiredMixin, View):
 
 
 
+class DailyReportView(LoginRequiredMixin, View):
+    """FAE 日报生成 - 一键汇总当日业务数据"""
+    template_name = 'fae/daily_report.html'
+
+    def get(self, request):
+        # 获取日期参数，默认今天
+        date_str = request.GET.get('date', '').strip()
+        if date_str:
+            try:
+                report_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                report_date = timezone.now().date()
+        else:
+            report_date = timezone.now().date()
+
+        # 日期范围（naive datetime，兼容 USE_TZ=False + MySQL）
+        start_dt = datetime.combine(report_date, datetime.min.time())
+        end_dt = datetime.combine(report_date, datetime.max.time())
+
+        # 1. 当天新建的 FAE 任务
+        new_tasks = FAETask.objects.select_related('customer', 'assignee', 'created_by').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).order_by('-created_at')
+
+        # 2. 当天状态发生变更的 FAE 任务（通过日志）
+        task_logs = FAETaskLog.objects.select_related('task', 'operator').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).exclude(old_status='').order_by('-created_at')
+
+        # 3. 当天新建的测试项
+        new_tests = TestItem.objects.select_related('customer', 'tracker', 'project').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).order_by('-created_at')
+
+        # 4. 当天新建的异常样品
+        new_abnormals = AbnormalSample.objects.select_related('customer', 'assignee', 'created_by').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).order_by('-created_at')
+
+        # 5. 当天测试项日志
+        test_logs = TestItemLog.objects.select_related('test_item', 'operator').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).order_by('-created_at')
+
+        # 6. 当天异常样品日志
+        abnormal_logs = AbnormalLog.objects.select_related('abnormal_sample', 'operator').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        ).order_by('-created_at')
+
+        context = {
+            'report_date': report_date,
+            'prev_date': report_date - timedelta(days=1),
+            'next_date': report_date + timedelta(days=1),
+            'new_tasks': new_tasks,
+            'task_logs': task_logs,
+            'new_tests': new_tests,
+            'new_abnormals': new_abnormals,
+            'test_logs': test_logs,
+            'abnormal_logs': abnormal_logs,
+            'stats': {
+                'new_tasks': new_tasks.count(),
+                'status_changes': task_logs.count(),
+                'new_tests': new_tests.count(),
+                'new_abnormals': new_abnormals.count(),
+            }
+        }
+        return render(request, self.template_name, context)
+
+
 class UserSettingsView(LoginRequiredMixin, View):
     """用户设置视图 - 修改密码和头像"""
     template_name = 'fae/user_settings.html'

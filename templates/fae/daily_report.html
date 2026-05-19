@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}FAE日报 - {{ report_date|date:"Y-m-d" }} - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}FAE 业务日报{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in" id="daily-report">
+    <!-- 日期选择器 & 操作栏 -->
+    <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
+        <div class="flex items-center gap-3">
+            <a href="?date={{ prev_date|date:'Y-m-d' }}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            <form method="get" class="flex items-center gap-2">
+                <input type="date" name="date" value="{{ report_date|date:'Y-m-d' }}"
+                       class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                       onchange="this.form.submit()">
+            </form>
+            <a href="?date={{ next_date|date:'Y-m-d' }}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="copyReportText()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors flex items-center gap-2">
+                <i class="fas fa-copy"></i>
+                <span>复制纯文本</span>
+            </button>
+            <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-2">
+                <i class="fas fa-print"></i>
+                <span>打印</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 统计概览 -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <div class="glass rounded-xl p-4 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <i class="fas fa-headset text-blue-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stats.new_tasks }}</p>
+                    <p class="text-xs text-slate-400">新建任务</p>
+                </div>
+            </div>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                    <i class="fas fa-exchange-alt text-yellow-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stats.status_changes }}</p>
+                    <p class="text-xs text-slate-400">状态变更</p>
+                </div>
+            </div>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                    <i class="fas fa-vial text-cyan-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stats.new_tests }}</p>
+                    <p class="text-xs text-slate-400">新建测试</p>
+                </div>
+            </div>
+        </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                    <i class="fas fa-exclamation-triangle text-red-400"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-white">{{ stats.new_abnormals }}</p>
+                    <p class="text-xs text-slate-400">新建异常</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日报正文 -->
+    <div class="space-y-4 lg:space-y-6">
+
+        <!-- 新建 FAE 任务 -->
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-headset text-blue-400"></i>
+                    新建 FAE 任务
+                    <span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs">{{ new_tasks|length }}</span>
+                </h3>
+            </div>
+            {% if new_tasks %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">任务编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">类型</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">概述</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">负责人</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for task in new_tasks %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ task.task_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.customer.customer_code }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.get_task_type_display }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ task.summary|default:'-' }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.assignee.get_full_name|default:task.assignee.username }}</td>
+                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded text-xs {% if task.status == 'completed' %}status-resolved{% elif task.status == 'in_progress' %}status-processing{% elif task.status == 'pending_review' %}status-pending{% elif task.status == 'paused' %}bg-slate-800 text-slate-400{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                                    {{ task.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
+                <i class="fas fa-inbox text-3xl mb-2"></i>
+                <p class="text-sm">当日无新建任务</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 任务状态变更 -->
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-exchange-alt text-yellow-400"></i>
+                    任务状态变更
+                    <span class="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">{{ task_logs|length }}</span>
+                </h3>
+            </div>
+            {% if task_logs %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">任务编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">变更</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for log in task_logs %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.task.task_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">
+                                {{ log.get_old_status_display }} → {{ log.get_new_status_display }}
+                            </td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
+                <i class="fas fa-inbox text-3xl mb-2"></i>
+                <p class="text-sm">当日无状态变更</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 新建测试项 -->
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-vial text-cyan-400"></i>
+                    新建测试项
+                    <span class="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">{{ new_tests|length }}</span>
+                </h3>
+            </div>
+            {% if new_tests %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">测试编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">测试内容</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">跟踪人</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for test in new_tests %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ test.test_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.customer.customer_code }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.get_test_content_display }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.tracker.get_full_name|default:test.tracker.username }}</td>
+                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded text-xs {% if test.status == 'completed' %}status-resolved{% elif test.status == 'in_progress' %}status-processing{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                                    {{ test.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
+                <i class="fas fa-inbox text-3xl mb-2"></i>
+                <p class="text-sm">当日无新建测试</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 新建异常样品 -->
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-red-400"></i>
+                    新建异常样品
+                    <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">{{ new_abnormals|length }}</span>
+                </h3>
+            </div>
+            {% if new_abnormals %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">样品编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">优先级</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">负责人</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for sample in new_abnormals %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ sample.sample_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ sample.customer.customer_code }}</td>
+                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded text-xs {% if sample.priority == 'urgent' %}status-urgent{% elif sample.priority == 'high' %}status-pending{% else %}bg-slate-800 text-slate-400{% endif %}">
+                                    {{ sample.get_priority_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                <span class="px-2 py-1 rounded text-xs {% if sample.status == 'resolved' %}status-resolved{% elif sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
+                                    {{ sample.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">
+                                {% if sample.assignee %}
+                                    {{ sample.assignee.get_full_name|default:sample.assignee.username }}
+                                {% else %}
+                                    <span class="text-slate-500">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
+                <i class="fas fa-inbox text-3xl mb-2"></i>
+                <p class="text-sm">当日无新建异常</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 测试项动态 -->
+        {% if test_logs %}
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-clipboard-list text-cyan-400"></i>
+                    测试项动态
+                    <span class="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">{{ test_logs|length }}</span>
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">测试编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">操作</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for log in test_logs %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.test_item.test_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.action }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 异常样品动态 -->
+        {% if abnormal_logs %}
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-semibold text-white flex items-center gap-2">
+                    <i class="fas fa-clipboard-list text-red-400"></i>
+                    异常样品动态
+                    <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">{{ abnormal_logs|length }}</span>
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                        <tr>
+                            <th class="px-4 lg:px-6 py-3 font-medium">样品编号</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">操作</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
+                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for log in abnormal_logs %}
+                        <tr class="table-row-hover">
+                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.abnormal_sample.sample_number }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.action }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
+                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- 纯文本报告（隐藏，用于复制） -->
+<div id="text-report" style="position:absolute;left:-9999px;">
+SSD FAE 业务日报 - {{ report_date|date:"Y年m月d日" }}
+生成人: {{ user.get_full_name|default:user.username }}
+
+【今日概览】
+- 新建任务: {{ stats.new_tasks }}
+- 状态变更: {{ stats.status_changes }}
+- 新建测试: {{ stats.new_tests }}
+- 新建异常: {{ stats.new_abnormals }}
+
+{% if new_tasks %}
+【新建任务】
+{% for task in new_tasks %}
+{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.get_task_type_display }} | {{ task.assignee.get_full_name|default:task.assignee.username }} | {{ task.summary|default:"-" }}
+{% endfor %}
+{% endif %}
+
+{% if task_logs %}
+【状态变更】
+{% for log in task_logs %}
+{{ forloop.counter }}. {{ log.task.task_number }} | {{ log.get_old_status_display }} → {{ log.get_new_status_display }} | {{ log.operator.get_full_name|default:log.operator.username }} | {{ log.comment|default:"-" }}
+{% endfor %}
+{% endif %}
+
+{% if new_tests %}
+【新建测试项】
+{% for test in new_tests %}
+{{ forloop.counter }}. {{ test.test_number }} | {{ test.customer.customer_code }} | {{ test.get_test_content_display }} | {{ test.tracker.get_full_name|default:test.tracker.username }}
+{% endfor %}
+{% endif %}
+
+{% if new_abnormals %}
+【新建异常样品】
+{% for sample in new_abnormals %}
+{{ forloop.counter }}. {{ sample.sample_number }} | {{ sample.customer.customer_code }} | {{ sample.get_priority_display }} | {{ sample.get_status_display }}
+{% endfor %}
+{% endif %}
+
+{% if test_logs %}
+【测试项动态】
+{% for log in test_logs %}
+{{ forloop.counter }}. {{ log.test_item.test_number }} | {{ log.action }} | {{ log.operator.get_full_name|default:log.operator.username }}
+{% endfor %}
+{% endif %}
+
+{% if abnormal_logs %}
+【异常样品动态】
+{% for log in abnormal_logs %}
+{{ forloop.counter }}. {{ log.abnormal_sample.sample_number }} | {{ log.action }} | {{ log.operator.get_full_name|default:log.operator.username }}
+{% endfor %}
+{% endif %}
+</div>
+
+<style>
+@media print {
+    body { background: white !important; color: black !important; }
+    .desktop-sidebar, .mobile-header, .mobile-nav, .mobile-drawer,
+    header.lg\:flex, button { display: none !important; }
+    .main-content { padding: 0 !important; }
+    .glass {
+        background: white !important;
+        border: 1px solid #ddd !important;
+        color: black !important;
+    }
+    .glass * { color: black !important; }
+    .table-row-hover:hover { background: transparent !important; transform: none !important; }
+    #daily-report { animation: none !important; }
+}
+</style>
+
+<script>
+function copyReportText() {
+    const text = document.getElementById('text-report').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('button[onclick="copyReportText()"]');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i><span>已复制</span>';
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+        btn.classList.add('bg-green-600', 'hover:bg-green-500');
+        setTimeout(() => {
+            btn.innerHTML = original;
+            btn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+            btn.classList.remove('bg-green-600', 'hover:bg-green-500');
+        }, 2000);
+    }).catch(() => {
+        alert('复制失败，请手动复制');
+    });
+}
+</script>
+{% endblock %}

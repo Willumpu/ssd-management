@@ -20,5 +20,6 @@ urlpatterns = [
     path('customers/create/', views.CustomerCreateView.as_view(), name='customer_create'),
     path('notifications/<int:pk>/mark-read/', views.NotificationMarkReadView.as_view(), name='notification_mark_read'),
     path('notifications/task/<int:pk>/mark-read/', views.NotificationMarkTaskReadView.as_view(), name='notification_mark_task_read'),
+    path('daily-report/', views.DailyReportView.as_view(), name='daily_report'),
     path('user/settings/', views.UserSettingsView.as_view(), name='user_settings'),
 ]
