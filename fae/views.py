@@ -979,9 +979,14 @@ class DailyReportView(LoginRequiredMixin, View):
             created_at__gte=start_dt, created_at__lte=end_dt
         )
 
-        # ---------- 今日任务：当天新建或有日志的 FAE 任务（去重） ----------
+        # ---------- 今日任务：当天新建 / 有日志 / 关联新测试项 的 FAE 任务（去重） ----------
         task_ids = set(new_tasks.values_list('id', flat=True))
         task_ids.update(all_task_logs.values_list('task_id', flat=True))
+        # 当天新建测试项所关联的历史任务
+        new_test_linked_task_ids = set(
+            FAETask.objects.filter(test_items__in=new_tests).values_list('id', flat=True)
+        )
+        task_ids.update(new_test_linked_task_ids)
         today_tasks = FAETask.objects.select_related('customer', 'assignee').filter(
             id__in=task_ids
         ).order_by('-created_at')
@@ -992,6 +997,10 @@ class DailyReportView(LoginRequiredMixin, View):
             tid = log.task_id
             if tid not in task_latest_logs or log.created_at > task_latest_logs[tid]['time']:
                 task_latest_logs[tid] = log.action
+        # 补充：当天关联了新测试项的历史任务
+        for task_id in new_test_linked_task_ids:
+            if task_id not in task_latest_logs:
+                task_latest_logs[task_id] = '关联新测试项'
 
         # 把 QuerySet 转成列表，附加 latest_log 属性（避免模板自定义过滤器）
         today_tasks_list = list(today_tasks)
