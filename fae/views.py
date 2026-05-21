@@ -941,11 +941,10 @@ class FAETaskCommentDeleteView(LoginRequiredMixin, View):
 
 
 class DailyReportView(LoginRequiredMixin, View):
-    """FAE 日报生成 - 一键汇总当日业务数据"""
+    """FAE 日报生成 - 今日任务 / 今日行动 / 今日结论"""
     template_name = 'fae/daily_report.html'
 
     def get(self, request):
-        # 获取日期参数，默认今天
         date_str = request.GET.get('date', '').strip()
         if date_str:
             try:
@@ -959,51 +958,123 @@ class DailyReportView(LoginRequiredMixin, View):
         start_dt = datetime.combine(report_date, datetime.min.time())
         end_dt = datetime.combine(report_date, datetime.max.time())
 
-        # 1. 当天新建的 FAE 任务
-        new_tasks = FAETask.objects.select_related('customer', 'assignee', 'created_by').filter(
+        # ---------- 基础查询 ----------
+        new_tasks = FAETask.objects.select_related('customer', 'assignee').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
-        ).order_by('-created_at')
-
-        # 2. 当天状态发生变更的 FAE 任务（通过日志）
-        task_logs = FAETaskLog.objects.select_related('task', 'operator').filter(
+        )
+        all_task_logs = FAETaskLog.objects.select_related('task', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
-        ).exclude(old_status='').order_by('-created_at')
-
-        # 3. 当天新建的测试项
-        new_tests = TestItem.objects.select_related('customer', 'tracker', 'project').filter(
+        )
+        status_change_logs = all_task_logs.exclude(old_status='')
+        new_tests = TestItem.objects.select_related('customer', 'tracker').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
-        ).order_by('-created_at')
-
-        # 4. 当天新建的异常样品
-        new_abnormals = AbnormalSample.objects.select_related('customer', 'assignee', 'created_by').filter(
-            created_at__gte=start_dt, created_at__lte=end_dt
-        ).order_by('-created_at')
-
-        # 5. 当天测试项日志
+        )
         test_logs = TestItemLog.objects.select_related('test_item', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
-        ).order_by('-created_at')
-
-        # 6. 当天异常样品日志
+        )
+        new_abnormals = AbnormalSample.objects.select_related('customer', 'assignee').filter(
+            created_at__gte=start_dt, created_at__lte=end_dt
+        )
         abnormal_logs = AbnormalLog.objects.select_related('abnormal_sample', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
+        )
+
+        # ---------- 今日任务：当天新建或有日志的 FAE 任务（去重） ----------
+        task_ids = set(new_tasks.values_list('id', flat=True))
+        task_ids.update(all_task_logs.values_list('task_id', flat=True))
+        today_tasks = FAETask.objects.select_related('customer', 'assignee').filter(
+            id__in=task_ids
+        ).order_by('-created_at')
+
+        # 为每个任务附加当天的最新日志简述
+        task_latest_logs = {}
+        for log in all_task_logs:
+            tid = log.task_id
+            if tid not in task_latest_logs or log.created_at > task_latest_logs[tid]['time']:
+                task_latest_logs[tid] = {
+                    'action': log.action,
+                    'time': log.created_at,
+                }
+
+        # ---------- 今日行动：所有操作日志合并为统一时间线 ----------
+        actions = []
+        for log in all_task_logs:
+            actions.append({
+                'time': log.created_at,
+                'category': 'FAE任务',
+                'target': log.task.task_number,
+                'action': log.action,
+                'operator': log.operator.get_full_name() or log.operator.username,
+                'comment': log.comment,
+                'link': f'/fae/tasks/{log.task.pk}/',
+            })
+        for log in test_logs:
+            actions.append({
+                'time': log.created_at,
+                'category': '测试项',
+                'target': log.test_item.test_number,
+                'action': log.action,
+                'operator': log.operator.get_full_name() or log.operator.username,
+                'comment': log.comment,
+                'link': f'/testing/tests/{log.test_item.pk}/',
+            })
+        for log in abnormal_logs:
+            actions.append({
+                'time': log.created_at,
+                'category': '异常样品',
+                'target': log.abnormal_sample.sample_number,
+                'action': log.action,
+                'operator': log.operator.get_full_name() or log.operator.username,
+                'comment': log.comment,
+                'link': f'/abnormal/{log.abnormal_sample.pk}/',
+            })
+        actions.sort(key=lambda x: x['time'], reverse=True)
+
+        # ---------- 今日结论：当天完成/解决的事项 ----------
+        # FAE 任务变为 completed
+        completed_task_ids = set()
+        for log in status_change_logs:
+            if log.new_status == 'completed':
+                completed_task_ids.add(log.task_id)
+        completed_task_ids.update(new_tasks.filter(status='completed').values_list('id', flat=True))
+        completed_tasks = FAETask.objects.select_related('customer', 'assignee').filter(
+            id__in=completed_task_ids
+        ).order_by('-created_at')
+
+        # 测试项变为 completed
+        completed_test_ids = set()
+        for log in test_logs:
+            if log.new_status == 'completed':
+                completed_test_ids.add(log.test_item_id)
+        completed_test_ids.update(new_tests.filter(status='completed').values_list('id', flat=True))
+        completed_tests = TestItem.objects.select_related('customer', 'tracker').filter(
+            id__in=completed_test_ids
+        ).order_by('-created_at')
+
+        # 异常样品变为 resolved
+        resolved_abnormal_ids = set()
+        for log in abnormal_logs:
+            if log.new_status == 'resolved':
+                resolved_abnormal_ids.add(log.abnormal_sample_id)
+        resolved_abnormal_ids.update(new_abnormals.filter(status='resolved').values_list('id', flat=True))
+        resolved_abnormals = AbnormalSample.objects.select_related('customer', 'assignee').filter(
+            id__in=resolved_abnormal_ids
         ).order_by('-created_at')
 
         context = {
             'report_date': report_date,
             'prev_date': report_date - timedelta(days=1),
             'next_date': report_date + timedelta(days=1),
-            'new_tasks': new_tasks,
-            'task_logs': task_logs,
-            'new_tests': new_tests,
-            'new_abnormals': new_abnormals,
-            'test_logs': test_logs,
-            'abnormal_logs': abnormal_logs,
+            'today_tasks': today_tasks,
+            'task_latest_logs': task_latest_logs,
+            'actions': actions,
+            'completed_tasks': completed_tasks,
+            'completed_tests': completed_tests,
+            'resolved_abnormals': resolved_abnormals,
             'stats': {
-                'new_tasks': new_tasks.count(),
-                'status_changes': task_logs.count(),
-                'new_tests': new_tests.count(),
-                'new_abnormals': new_abnormals.count(),
+                'today_tasks': len(today_tasks),
+                'actions': len(actions),
+                'conclusions': len(completed_tasks) + len(completed_tests) + len(resolved_abnormals),
             }
         }
         return render(request, self.template_name, context)

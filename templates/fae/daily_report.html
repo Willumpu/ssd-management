@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load fae_extras %}
 
 {% block title %}FAE日报 - {{ report_date|date:"Y-m-d" }} - SSD FAE业务管理系统{% endblock %}
 {% block page_title %}FAE 业务日报{% endblock %}
@@ -33,324 +34,229 @@
     </div>
 
     <!-- 统计概览 -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <div class="glass rounded-xl p-4 border border-slate-700/50">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                    <i class="fas fa-headset text-blue-400"></i>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-white">{{ stats.new_tasks }}</p>
-                    <p class="text-xs text-slate-400">新建任务</p>
-                </div>
+    <div class="grid grid-cols-3 gap-3 lg:gap-4">
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <div class="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-headset text-blue-400 text-xl"></i>
             </div>
+            <p class="text-2xl font-bold text-white">{{ stats.today_tasks }}</p>
+            <p class="text-xs text-slate-400 mt-1">今日任务</p>
         </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                    <i class="fas fa-exchange-alt text-yellow-400"></i>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-white">{{ stats.status_changes }}</p>
-                    <p class="text-xs text-slate-400">状态变更</p>
-                </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <div class="w-12 h-12 rounded-lg bg-yellow-500/20 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-running text-yellow-400 text-xl"></i>
             </div>
+            <p class="text-2xl font-bold text-white">{{ stats.actions }}</p>
+            <p class="text-xs text-slate-400 mt-1">今日行动</p>
         </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                    <i class="fas fa-vial text-cyan-400"></i>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-white">{{ stats.new_tests }}</p>
-                    <p class="text-xs text-slate-400">新建测试</p>
-                </div>
+        <div class="glass rounded-xl p-4 border border-slate-700/50 text-center">
+            <div class="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center mx-auto mb-2">
+                <i class="fas fa-check-circle text-green-400 text-xl"></i>
             </div>
-        </div>
-        <div class="glass rounded-xl p-4 border border-slate-700/50">
-            <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                    <i class="fas fa-exclamation-triangle text-red-400"></i>
-                </div>
-                <div>
-                    <p class="text-2xl font-bold text-white">{{ stats.new_abnormals }}</p>
-                    <p class="text-xs text-slate-400">新建异常</p>
-                </div>
-            </div>
+            <p class="text-2xl font-bold text-white">{{ stats.conclusions }}</p>
+            <p class="text-xs text-slate-400 mt-1">今日结论</p>
         </div>
     </div>
 
-    <!-- 日报正文 -->
-    <div class="space-y-4 lg:space-y-6">
-
-        <!-- 新建 FAE 任务 -->
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-headset text-blue-400"></i>
-                    新建 FAE 任务
-                    <span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs">{{ new_tasks|length }}</span>
-                </h3>
+    <!-- ==================== 今日任务 ==================== -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="px-4 lg:px-6 py-4 border-b border-slate-800 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <i class="fas fa-headset text-blue-400 text-sm"></i>
             </div>
-            {% if new_tasks %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">任务编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">类型</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">概述</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">负责人</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for task in new_tasks %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ task.task_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.customer.customer_code }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.get_task_type_display }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ task.summary|default:'-' }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.assignee.get_full_name|default:task.assignee.username }}</td>
-                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                <span class="px-2 py-1 rounded text-xs {% if task.status == 'completed' %}status-resolved{% elif task.status == 'in_progress' %}status-processing{% elif task.status == 'pending_review' %}status-pending{% elif task.status == 'paused' %}bg-slate-800 text-slate-400{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
-                                    {{ task.get_status_display }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div>
+                <h3 class="font-semibold text-white">今日任务</h3>
+                <p class="text-xs text-slate-500">当日新建或有动态跟进的所有 FAE 任务</p>
             </div>
-            {% else %}
-            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
-                <i class="fas fa-inbox text-3xl mb-2"></i>
-                <p class="text-sm">当日无新建任务</p>
-            </div>
-            {% endif %}
+            <span class="ml-auto px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">{{ today_tasks|length }}</span>
         </div>
-
-        <!-- 任务状态变更 -->
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-exchange-alt text-yellow-400"></i>
-                    任务状态变更
-                    <span class="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">{{ task_logs|length }}</span>
-                </h3>
-            </div>
-            {% if task_logs %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">任务编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">变更</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for log in task_logs %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.task.task_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">
-                                {{ log.get_old_status_display }} → {{ log.get_new_status_display }}
-                            </td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
-                <i class="fas fa-inbox text-3xl mb-2"></i>
-                <p class="text-sm">当日无状态变更</p>
-            </div>
-            {% endif %}
+        {% if today_tasks %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                    <tr>
+                        <th class="px-4 lg:px-6 py-3 font-medium">任务编号</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">类型</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">概述</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">负责人</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">当前状态</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">最新动态</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for task in today_tasks %}
+                    <tr class="table-row-hover cursor-pointer" onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
+                        <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ task.task_number }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.customer.customer_code }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.get_task_type_display }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ task.summary|default:'-' }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ task.assignee.get_full_name|default:task.assignee.username }}</td>
+                        <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded text-xs {% if task.status == 'completed' %}status-resolved{% elif task.status == 'in_progress' %}status-processing{% elif task.status == 'pending_review' %}status-pending{% elif task.status == 'paused' %}bg-slate-800 text-slate-400{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
+                                {{ task.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-400 text-xs whitespace-nowrap max-w-xs truncate">
+                            {% with latest=task_latest_logs|get_item:task.id %}
+                                {% if latest %}{{ latest.action }}{% else %}新建任务{% endif %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        <!-- 新建测试项 -->
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-vial text-cyan-400"></i>
-                    新建测试项
-                    <span class="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">{{ new_tests|length }}</span>
-                </h3>
-            </div>
-            {% if new_tests %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">测试编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">测试内容</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">跟踪人</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for test in new_tests %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ test.test_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.customer.customer_code }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.get_test_content_display }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ test.tracker.get_full_name|default:test.tracker.username }}</td>
-                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                <span class="px-2 py-1 rounded text-xs {% if test.status == 'completed' %}status-resolved{% elif test.status == 'in_progress' %}status-processing{% else %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% endif %}">
-                                    {{ test.get_status_display }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
-                <i class="fas fa-inbox text-3xl mb-2"></i>
-                <p class="text-sm">当日无新建测试</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- 新建异常样品 -->
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-exclamation-triangle text-red-400"></i>
-                    新建异常样品
-                    <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">{{ new_abnormals|length }}</span>
-                </h3>
-            </div>
-            {% if new_abnormals %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">样品编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">客户</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">优先级</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">状态</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">负责人</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for sample in new_abnormals %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ sample.sample_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ sample.customer.customer_code }}</td>
-                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                <span class="px-2 py-1 rounded text-xs {% if sample.priority == 'urgent' %}status-urgent{% elif sample.priority == 'high' %}status-pending{% else %}bg-slate-800 text-slate-400{% endif %}">
-                                    {{ sample.get_priority_display }}
-                                </span>
-                            </td>
-                            <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                <span class="px-2 py-1 rounded text-xs {% if sample.status == 'resolved' %}status-resolved{% elif sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
-                                    {{ sample.get_status_display }}
-                                </span>
-                            </td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">
-                                {% if sample.assignee %}
-                                    {{ sample.assignee.get_full_name|default:sample.assignee.username }}
-                                {% else %}
-                                    <span class="text-slate-500">-</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="px-4 lg:px-6 py-8 text-center text-slate-500">
-                <i class="fas fa-inbox text-3xl mb-2"></i>
-                <p class="text-sm">当日无新建异常</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- 测试项动态 -->
-        {% if test_logs %}
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-clipboard-list text-cyan-400"></i>
-                    测试项动态
-                    <span class="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 text-xs">{{ test_logs|length }}</span>
-                </h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">测试编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">操作</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for log in test_logs %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.test_item.test_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.action }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        {% else %}
+        <div class="px-4 lg:px-6 py-12 text-center text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4"></i>
+            <p>当日无任务动态</p>
         </div>
         {% endif %}
+    </div>
 
-        <!-- 异常样品动态 -->
-        {% if abnormal_logs %}
-        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
-            <div class="px-4 lg:px-6 py-3 border-b border-slate-800 flex items-center justify-between">
-                <h3 class="font-semibold text-white flex items-center gap-2">
-                    <i class="fas fa-clipboard-list text-red-400"></i>
-                    异常样品动态
-                    <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs">{{ abnormal_logs|length }}</span>
-                </h3>
+    <!-- ==================== 今日行动 ==================== -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="px-4 lg:px-6 py-4 border-b border-slate-800 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                <i class="fas fa-running text-yellow-400 text-sm"></i>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                        <tr>
-                            <th class="px-4 lg:px-6 py-3 font-medium">样品编号</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">操作</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
-                            <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-800">
-                        {% for log in abnormal_logs %}
-                        <tr class="table-row-hover">
-                            <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ log.abnormal_sample.sample_number }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.action }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ log.operator.get_full_name|default:log.operator.username }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-300 max-w-xs truncate">{{ log.comment|default:'-' }}</td>
-                            <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap">{{ log.created_at|date:"H:i" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div>
+                <h3 class="font-semibold text-white">今日行动</h3>
+                <p class="text-xs text-slate-500">当日所有操作记录，按时间倒序排列</p>
             </div>
+            <span class="ml-auto px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-medium">{{ actions|length }}</span>
+        </div>
+        {% if actions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                    <tr>
+                        <th class="px-4 lg:px-6 py-3 font-medium">时间</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">类别</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">对象</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">操作</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">操作人</th>
+                        <th class="px-4 lg:px-6 py-3 font-medium">备注</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for act in actions %}
+                    <tr class="table-row-hover cursor-pointer" onclick="window.location.href='{{ act.link }}'">
+                        <td class="px-4 lg:px-6 py-3 text-slate-500 whitespace-nowrap mono">{{ act.time|date:"H:i" }}</td>
+                        <td class="px-4 lg:px-6 py-3 whitespace-nowrap">
+                            <span class="px-2 py-0.5 rounded text-xs {% if act.category == 'FAE任务' %}bg-blue-500/20 text-blue-400{% elif act.category == '测试项' %}bg-cyan-500/20 text-cyan-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                                {{ act.category }}
+                            </span>
+                        </td>
+                        <td class="px-4 lg:px-6 py-3 font-medium text-white whitespace-nowrap">{{ act.target }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ act.action }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-300 whitespace-nowrap">{{ act.operator }}</td>
+                        <td class="px-4 lg:px-6 py-3 text-slate-400 text-xs max-w-xs truncate">{{ act.comment|default:'-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-4 lg:px-6 py-12 text-center text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4"></i>
+            <p>当日无操作记录</p>
         </div>
         {% endif %}
+    </div>
 
+    <!-- ==================== 今日结论 ==================== -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="px-4 lg:px-6 py-4 border-b border-slate-800 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <i class="fas fa-check-circle text-green-400 text-sm"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold text-white">今日结论</h3>
+                <p class="text-xs text-slate-500">当日完成、解决或产出结果的事项</p>
+            </div>
+            <span class="ml-auto px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">{{ stats.conclusions }}</span>
+        </div>
+
+        <div class="divide-y divide-slate-800">
+            <!-- 已完成的 FAE 任务 -->
+            {% if completed_tasks %}
+            <div class="px-4 lg:px-6 py-4">
+                <h4 class="text-sm font-medium text-blue-400 mb-3 flex items-center gap-2">
+                    <i class="fas fa-headset"></i>
+                    已完成的 FAE 任务
+                    <span class="text-slate-500">({{ completed_tasks|length }})</span>
+                </h4>
+                <div class="space-y-2">
+                    {% for task in completed_tasks %}
+                    <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-blue-500/30 transition-colors cursor-pointer"
+                         onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
+                        <span class="text-white font-medium text-sm whitespace-nowrap">{{ task.task_number }}</span>
+                        <span class="text-slate-400 text-sm">{{ task.customer.customer_code }}</span>
+                        <span class="text-slate-300 text-sm flex-1 truncate">{{ task.summary|default:'-' }}</span>
+                        <span class="text-slate-500 text-xs whitespace-nowrap">{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
+                        <span class="px-2 py-0.5 rounded text-xs status-resolved whitespace-nowrap">已结束</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 已完成的测试项 -->
+            {% if completed_tests %}
+            <div class="px-4 lg:px-6 py-4">
+                <h4 class="text-sm font-medium text-cyan-400 mb-3 flex items-center gap-2">
+                    <i class="fas fa-vial"></i>
+                    已完成的测试项
+                    <span class="text-slate-500">({{ completed_tests|length }})</span>
+                </h4>
+                <div class="space-y-2">
+                    {% for test in completed_tests %}
+                    <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 transition-colors cursor-pointer"
+                         onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
+                        <span class="text-white font-medium text-sm whitespace-nowrap">{{ test.test_number }}</span>
+                        <span class="text-slate-400 text-sm">{{ test.customer.customer_code }}</span>
+                        <span class="text-slate-300 text-sm flex-1 truncate">{{ test.get_test_content_display }}</span>
+                        <span class="text-slate-500 text-xs whitespace-nowrap">{{ test.tracker.get_full_name|default:test.tracker.username }}</span>
+                        <span class="px-2 py-0.5 rounded text-xs status-resolved whitespace-nowrap">已结束</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 已解决的异常样品 -->
+            {% if resolved_abnormals %}
+            <div class="px-4 lg:px-6 py-4">
+                <h4 class="text-sm font-medium text-red-400 mb-3 flex items-center gap-2">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    已解决的异常样品
+                    <span class="text-slate-500">({{ resolved_abnormals|length }})</span>
+                </h4>
+                <div class="space-y-2">
+                    {% for sample in resolved_abnormals %}
+                    <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-red-500/30 transition-colors cursor-pointer"
+                         onclick="window.location.href='{% url 'abnormal:abnormal_detail' sample.pk %}'">
+                        <span class="text-white font-medium text-sm whitespace-nowrap">{{ sample.sample_number }}</span>
+                        <span class="text-slate-400 text-sm">{{ sample.customer.customer_code }}</span>
+                        <span class="text-slate-300 text-sm flex-1 truncate">
+                            {% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}
+                        </span>
+                        <span class="px-2 py-0.5 rounded text-xs status-resolved whitespace-nowrap">已解决</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not completed_tasks and not completed_tests and not resolved_abnormals %}
+            <div class="px-4 lg:px-6 py-12 text-center text-slate-500">
+                <i class="fas fa-inbox text-4xl mb-4"></i>
+                <p>当日无完成事项</p>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
@@ -359,52 +265,35 @@
 SSD FAE 业务日报 - {{ report_date|date:"Y年m月d日" }}
 生成人: {{ user.get_full_name|default:user.username }}
 
-【今日概览】
-- 新建任务: {{ stats.new_tasks }}
-- 状态变更: {{ stats.status_changes }}
-- 新建测试: {{ stats.new_tests }}
-- 新建异常: {{ stats.new_abnormals }}
-
-{% if new_tasks %}
-【新建任务】
-{% for task in new_tasks %}
-{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.get_task_type_display }} | {{ task.assignee.get_full_name|default:task.assignee.username }} | {{ task.summary|default:"-" }}
-{% endfor %}
+【今日任务】({{ today_tasks|length }})
+{% if today_tasks %}{% for task in today_tasks %}
+{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.get_task_type_display }} | {{ task.assignee.get_full_name|default:task.assignee.username }} | {{ task.get_status_display }} | {{ task.summary|default:"-" }}
+{% endfor %}{% else %}无
 {% endif %}
 
-{% if task_logs %}
-【状态变更】
-{% for log in task_logs %}
-{{ forloop.counter }}. {{ log.task.task_number }} | {{ log.get_old_status_display }} → {{ log.get_new_status_display }} | {{ log.operator.get_full_name|default:log.operator.username }} | {{ log.comment|default:"-" }}
-{% endfor %}
+【今日行动】({{ actions|length }})
+{% if actions %}{% for act in actions %}
+{{ act.time|date:"H:i" }} | {{ act.category }} | {{ act.target }} | {{ act.action }} | {{ act.operator }}{% if act.comment %} | {{ act.comment }}{% endif %}
+{% endfor %}{% else %}无
 {% endif %}
 
-{% if new_tests %}
-【新建测试项】
-{% for test in new_tests %}
+【今日结论】({{ stats.conclusions }})
+{% if completed_tasks %}
+-- 已完成的 FAE 任务 ({{ completed_tasks|length }}) --
+{% for task in completed_tasks %}
+{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.summary|default:"-" }} | {{ task.assignee.get_full_name|default:task.assignee.username }}
+{% endfor %}{% endif %}
+{% if completed_tests %}
+-- 已完成的测试项 ({{ completed_tests|length }}) --
+{% for test in completed_tests %}
 {{ forloop.counter }}. {{ test.test_number }} | {{ test.customer.customer_code }} | {{ test.get_test_content_display }} | {{ test.tracker.get_full_name|default:test.tracker.username }}
-{% endfor %}
-{% endif %}
-
-{% if new_abnormals %}
-【新建异常样品】
-{% for sample in new_abnormals %}
-{{ forloop.counter }}. {{ sample.sample_number }} | {{ sample.customer.customer_code }} | {{ sample.get_priority_display }} | {{ sample.get_status_display }}
-{% endfor %}
-{% endif %}
-
-{% if test_logs %}
-【测试项动态】
-{% for log in test_logs %}
-{{ forloop.counter }}. {{ log.test_item.test_number }} | {{ log.action }} | {{ log.operator.get_full_name|default:log.operator.username }}
-{% endfor %}
-{% endif %}
-
-{% if abnormal_logs %}
-【异常样品动态】
-{% for log in abnormal_logs %}
-{{ forloop.counter }}. {{ log.abnormal_sample.sample_number }} | {{ log.action }} | {{ log.operator.get_full_name|default:log.operator.username }}
-{% endfor %}
+{% endfor %}{% endif %}
+{% if resolved_abnormals %}
+-- 已解决的异常样品 ({{ resolved_abnormals|length }}) --
+{% for sample in resolved_abnormals %}
+{{ forloop.counter }}. {{ sample.sample_number }} | {{ sample.customer.customer_code }} | {% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}
+{% endfor %}{% endif %}
+{% if not completed_tasks and not completed_tests and not resolved_abnormals %}无
 {% endif %}
 </div>
 
@@ -418,10 +307,16 @@ SSD FAE 业务日报 - {{ report_date|date:"Y年m月d日" }}
         background: white !important;
         border: 1px solid #ddd !important;
         color: black !important;
+        margin-bottom: 1rem !important;
     }
     .glass * { color: black !important; }
     .table-row-hover:hover { background: transparent !important; transform: none !important; }
     #daily-report { animation: none !important; }
+    .status-resolved, .status-processing, .status-pending, .status-urgent {
+        background: #f0f0f0 !important;
+        color: #333 !important;
+        border: 1px solid #ccc !important;
+    }
 }
 </style>
 
