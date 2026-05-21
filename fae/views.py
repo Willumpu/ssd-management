@@ -1010,6 +1010,9 @@ class DailyReportView(LoginRequiredMixin, View):
         # ---------- 今日行动：所有操作日志合并为统一时间线 ----------
         actions = []
         for log in all_task_logs:
+            # 不展示 FAE 任务的创建操作
+            if log.action.startswith('创建任务'):
+                continue
             actions.append({
                 'time': log.created_at,
                 'category': 'FAE任务',
