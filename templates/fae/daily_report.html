@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load fae_extras %}
 
 {% block title %}FAE日报 - {{ report_date|date:"Y-m-d" }} - SSD FAE业务管理系统{% endblock %}
 {% block page_title %}FAE 业务日报{% endblock %}
@@ -98,9 +97,7 @@
                             </span>
                         </td>
                         <td class="px-4 lg:px-6 py-3 text-slate-400 text-xs whitespace-nowrap max-w-xs truncate">
-                            {% with latest=task_latest_logs|get_item:task.id %}
-                                {% if latest %}{{ latest.action }}{% else %}新建任务{% endif %}
-                            {% endwith %}
+                            {{ task.latest_log }}
                         </td>
                     </tr>
                     {% endfor %}

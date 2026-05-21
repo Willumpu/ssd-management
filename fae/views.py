@@ -991,10 +991,12 @@ class DailyReportView(LoginRequiredMixin, View):
         for log in all_task_logs:
             tid = log.task_id
             if tid not in task_latest_logs or log.created_at > task_latest_logs[tid]['time']:
-                task_latest_logs[tid] = {
-                    'action': log.action,
-                    'time': log.created_at,
-                }
+                task_latest_logs[tid] = log.action
+
+        # 把 QuerySet 转成列表，附加 latest_log 属性（避免模板自定义过滤器）
+        today_tasks_list = list(today_tasks)
+        for task in today_tasks_list:
+            task.latest_log = task_latest_logs.get(task.id, '新建任务')
 
         # ---------- 今日行动：所有操作日志合并为统一时间线 ----------
         actions = []
@@ -1065,8 +1067,7 @@ class DailyReportView(LoginRequiredMixin, View):
             'report_date': report_date,
             'prev_date': report_date - timedelta(days=1),
             'next_date': report_date + timedelta(days=1),
-            'today_tasks': today_tasks,
-            'task_latest_logs': task_latest_logs,
+            'today_tasks': today_tasks_list,
             'actions': actions,
             'completed_tasks': completed_tasks,
             'completed_tests': completed_tests,
