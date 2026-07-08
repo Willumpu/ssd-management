@@ -5,6 +5,86 @@
 
 {% block extra_js %}
 {{ comment_form.media }}
+<script>
+    function toggleGroup(header) {
+        const content = header.nextElementSibling;
+        const arrow = header.querySelector('.group-arrow');
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            arrow.style.transform = 'rotate(0deg)';
+        } else {
+            content.classList.add('hidden');
+            arrow.style.transform = 'rotate(-90deg)';
+        }
+    }
+
+    function editCount(container, field) {
+        const p = container.querySelector('.editable-count');
+        if (!p || container.querySelector('input')) return;
+
+        const oldValue = p.dataset.value;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = 0;
+        input.value = oldValue;
+        input.className = 'w-20 lg:w-28 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-center text-xl lg:text-3xl font-bold focus:outline-none focus:border-blue-500';
+        input.style.color = getComputedStyle(p).color;
+
+        p.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const restore = () => {
+            input.replaceWith(p);
+        };
+
+        const save = () => {
+            const newValue = input.value.trim();
+            if (newValue === oldValue) {
+                restore();
+                return;
+            }
+            const intValue = parseInt(newValue, 10);
+            if (isNaN(intValue) || intValue < 0) {
+                alert('数量必须是大于等于0的整数');
+                restore();
+                return;
+            }
+
+            fetch("{% url 'testing:test_update_count' test.pk %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({field: field, value: intValue})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || '更新失败');
+                    restore();
+                }
+            })
+            .catch(err => {
+                alert('请求失败：' + err);
+                restore();
+            });
+        };
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            } else if (e.key === 'Escape') {
+                restore();
+            }
+        });
+    }
+</script>
 {% endblock %}
 
 {% block content %}
@@ -22,9 +102,13 @@
                 <h2 class="text-lg lg:text-xl font-bold text-white">{{ test.get_test_content_display }}</h2>
             </div>
             <div class="flex gap-2">
-                <a href="{% url 'abnormal:abnormal_create' %}?test_item={{ test.pk }}" class="px-3 lg:px-4 py-2 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 text-sm">
-                    <i class="fas fa-exclamation-triangle mr-1 lg:mr-2"></i><span class="hidden lg:inline">创建异常样品</span>
+                {% with fae_task=test.fae_tasks.first %}
+                {% if fae_task %}
+                <a href="{% url 'fae:task_detail' fae_task.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm">
+                    <i class="fas fa-arrow-left mr-1 lg:mr-2"></i><span class="hidden lg:inline">回到FAE任务</span>
                 </a>
+                {% endif %}
+                {% endwith %}
                 <a href="{% url 'testing:test_update' test.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm">
                     <i class="fas fa-edit mr-1 lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
                 </a>
@@ -58,47 +142,168 @@
             </a>
         </div>
         {% endif %}
+
+        {% if test.sample_source %}
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-xs text-slate-500 mb-1">样品来源</p>
+            <p class="text-white text-sm lg:text-base">{{ test.sample_source }}</p>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Sample Statistics -->
-    <div class="grid grid-cols-3 gap-3 lg:gap-6">
+    <div class="grid grid-cols-5 gap-3 lg:gap-6">
         <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
             <p class="text-xl lg:text-3xl font-bold text-white">{{ test.total_samples }}</p>
             <p class="text-xs lg:text-sm text-slate-400 mt-1">样品总数</p>
         </div>
-        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
-            <p class="text-xl lg:text-3xl font-bold text-green-400">{{ test.passed_samples }}</p>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center cursor-pointer hover:bg-slate-700/30 transition-colors" onclick="editCount(this, 'passed_samples')" title="点击编辑">
+            <p class="editable-count text-xl lg:text-3xl font-bold text-green-400" data-field="passed_samples" data-value="{{ test.passed_samples }}">{{ test.passed_samples }}</p>
             <p class="text-xs lg:text-sm text-slate-400 mt-1">通过数量</p>
         </div>
-        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center">
-            <p class="text-xl lg:text-3xl font-bold text-red-400">{{ test.abnormal_samples_count }}</p>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center cursor-pointer hover:bg-slate-700/30 transition-colors" onclick="editCount(this, 'abnormal_samples_count')" title="点击编辑">
+            <p class="editable-count text-xl lg:text-3xl font-bold text-red-400" data-field="abnormal_samples_count" data-value="{{ test.abnormal_samples_count }}">{{ test.abnormal_samples_count }}</p>
             <p class="text-xs lg:text-sm text-slate-400 mt-1">异常数量</p>
+        </div>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center cursor-pointer hover:bg-slate-700/30 transition-colors" onclick="editCount(this, 'testing_samples')" title="点击编辑">
+            <p class="editable-count text-xl lg:text-3xl font-bold text-yellow-400" data-field="testing_samples" data-value="{{ test.testing_samples }}">{{ test.testing_samples }}</p>
+            <p class="text-xs lg:text-sm text-slate-400 mt-1">测试中数量</p>
+        </div>
+        <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 text-center cursor-pointer hover:bg-slate-700/30 transition-colors" onclick="editCount(this, 'retesting_samples')" title="点击编辑">
+            <p class="editable-count text-xl lg:text-3xl font-bold text-blue-400" data-field="retesting_samples" data-value="{{ test.retesting_samples }}">{{ test.retesting_samples }}</p>
+            <p class="text-xs lg:text-sm text-slate-400 mt-1">复测中数量</p>
         </div>
     </div>
 
-    <!-- Test Conclusion -->
-    <!-- Abnormal Samples -->
-    {% if abnormal_relations %}
+    <!-- 测试参数 -->
+    {% if test_parameters %}
     <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
-        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">关联异常样品</h3>
-        <div class="space-y-2 lg:space-y-3">
-            {% for relation in abnormal_relations %}
-            <div class="flex items-center gap-3 lg:gap-4 p-2 lg:p-3 rounded-lg bg-slate-900/50">
-                <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
-                <div class="flex-1 min-w-0">
-                    <a href="{% url 'abnormal:abnormal_detail' relation.abnormal_sample.pk %}" class="text-blue-400 hover:text-blue-300 mono text-sm truncate block">
-                        {{ relation.abnormal_sample.sample_number }}
-                    </a>
-                    <p class="text-xs text-slate-400">{{ relation.abnormal_sample.customer.customer_code }}</p>
-                </div>
-                <span class="px-2 py-1 rounded text-xs {% if relation.abnormal_sample.status == 'resolved' %}status-resolved{% elif relation.abnormal_sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
-                    {{ relation.abnormal_sample.get_status_display }}
-                </span>
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base flex items-center gap-2">
+            <i class="fas fa-sliders-h text-blue-400"></i>测试参数
+        </h3>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+            {% for tp in test_parameters %}
+            <div>
+                <p class="text-xs text-slate-500 mb-1">
+                    {{ tp.parameter.name }}{% if tp.parameter.unit %} ({{ tp.parameter.unit }}){% endif %}
+                </p>
+                <p class="text-white text-sm lg:text-base">{{ tp.value }}</p>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
+
+    <!-- Test Conclusion -->
+    <!-- Abnormal Samples -->
+    {% if grouped_abnormals or ungrouped_abnormals %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white mb-3 lg:mb-4 text-sm lg:text-base">关联异常样品</h3>
+        <div class="space-y-2 lg:space-y-3">
+            <!-- 按组折叠展示 -->
+            {% for group, samples in grouped_abnormals %}
+            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
+                <!-- 组标题（可点击折叠） -->
+                <div class="group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
+                     onclick="toggleGroup(this)">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-layer-group text-orange-400 text-sm"></i>
+                        <div>
+                            <span class="text-white text-sm font-medium">{{ group.group_number }}</span>
+                            <span class="text-xs text-slate-500 ml-2">{{ samples|length }} 片</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow" style="transform: rotate(-90deg);"></i>
+                </div>
+                <!-- 组内样品 -->
+                <div class="group-content hidden px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
+                    {% for sample in samples %}
+                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
+                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
+                        <div class="flex-1 min-w-0">
+                            <a href="{% url 'abnormal:abnormal_detail' sample.pk %}" class="text-blue-400 hover:text-blue-300 mono text-sm truncate block">
+                                {{ sample.sample_number }}
+                            </a>
+                            <p class="text-xs text-slate-400">{{ sample.customer.customer_code }}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded text-xs {% if sample.status == 'resolved' %}status-resolved{% elif sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
+                            {{ sample.get_status_display }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- 未分组样品 -->
+            {% if ungrouped_abnormals %}
+            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
+                <div class="group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
+                     onclick="toggleGroup(this)">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-vial text-slate-400 text-sm"></i>
+                        <div>
+                            <span class="text-white text-sm font-medium">未分组样品</span>
+                            <span class="text-xs text-slate-500 ml-2">{{ ungrouped_abnormals|length }} 片</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow" style="transform: rotate(-90deg);"></i>
+                </div>
+                <div class="group-content hidden px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
+                    {% for sample in ungrouped_abnormals %}
+                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
+                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
+                        <div class="flex-1 min-w-0">
+                            <a href="{% url 'abnormal:abnormal_detail' sample.pk %}" class="text-blue-400 hover:text-blue-300 mono text-sm truncate block">
+                                {{ sample.sample_number }}
+                            </a>
+                            <p class="text-xs text-slate-400">{{ sample.customer.customer_code }}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded text-xs {% if sample.status == 'resolved' %}status-resolved{% elif sample.status == 'retesting' %}status-processing{% else %}status-pending{% endif %}">
+                            {{ sample.get_status_display }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 异常样品分析 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white text-sm lg:text-base flex items-center gap-2 mb-3 lg:mb-4">
+            <i class="fas fa-microscope text-orange-400"></i>
+            异常样品分析
+            <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">
+                {{ abnormal_analysis_total }} / {{ test.abnormal_samples_count }}
+            </span>
+        </h3>
+
+        <!-- 分析记录列表 -->
+        <div class="space-y-2 mb-4">
+            {% for analysis in abnormal_analyses %}
+            <div class="rounded-lg bg-slate-900/50 border border-slate-800 p-3 lg:p-4">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-white text-sm font-medium">{{ analysis.reason.name }}</span>
+                    <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 text-xs">{{ analysis.quantity }} 片</span>
+                </div>
+                {% if analysis.description %}
+                <p class="text-xs text-slate-400 mt-1">{{ analysis.description }}</p>
+                {% endif %}
+                <p class="text-xs text-slate-500 mt-1">{{ analysis.created_by.get_full_name|default:analysis.created_by.username }} · {{ analysis.created_at|date:"m-d H:i" }}</p>
+            </div>
+            {% empty %}
+            <div class="text-center py-6 text-slate-500">
+                <i class="fas fa-microscope text-2xl mb-2 opacity-50"></i>
+                <p class="text-sm">暂无异常样品分析</p>
+            </div>
+            {% endfor %}
+        </div>
+
+
+    </div>
 
     <!-- 评论区域 - 移动端优化 -->
     <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">

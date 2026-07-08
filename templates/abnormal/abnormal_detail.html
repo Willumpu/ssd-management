@@ -20,6 +20,14 @@
             </div>
         </div>
         <div class="flex gap-2">
+            {% with fae_task=abnormal.test_item.fae_tasks.first %}
+            {% if fae_task %}
+            <a href="{% url 'fae:task_detail' fae_task.pk %}" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-blue-500/30">
+                <i class="fas fa-tasks"></i>
+                <span>返回FAE任务</span>
+            </a>
+            {% endif %}
+            {% endwith %}
             <!-- 状态变更下拉菜单 -->
             <div class="relative group">
                 <button type="button" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all">
@@ -94,6 +102,16 @@
                 </p>
             </div>
             <div>
+                <p class="text-xs text-slate-500 mb-1">所属组</p>
+                <p class="text-sm text-slate-300">
+                    {% if abnormal.group %}
+                    <a href="{% url 'abnormal:group_detail' abnormal.group.pk %}" class="text-blue-400 hover:text-blue-300">{{ abnormal.group.group_number }}</a>
+                    {% else %}
+                    <span class="text-slate-500">-</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
                 <p class="text-xs text-slate-500 mb-1">样品方案</p>
                 <p class="text-sm text-slate-300">
                     {% if abnormal.solution %}
@@ -139,6 +157,16 @@
             {% else %}
             <p class="text-slate-500 text-sm">未配置日志获取项</p>
             {% endif %}
+        </div>
+    </div>
+
+    <!-- 异常概述 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">异常概述</h3>
+        </div>
+        <div class="p-6">
+            <div class="text-sm text-slate-300">{{ abnormal.abnormal_summary|default:'暂无概述' }}</div>
         </div>
     </div>
 
@@ -189,9 +217,15 @@
     <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
         <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
             <h3 class="font-semibold text-white">日志文件</h3>
-            <form method="post" action="{% url 'abnormal:upload_log' abnormal.pk %}" enctype="multipart/form-data" class="flex gap-2">
+            <form method="post" action="{% url 'abnormal:upload_log' abnormal.pk %}" enctype="multipart/form-data" class="flex gap-2 items-center">
                 {% csrf_token %}
-                <input type="file" name="log_file" class="hidden" id="logFileInput" onchange="this.form.submit()">
+                <select name="log_type" required class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+                    <option value="">选择日志类型</option>
+                    {% for value, label in abnormal.LOG_CHOICES %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="file" name="log_file" class="hidden" id="logFileInput" onchange="if(this.form.log_type.value){this.form.submit();}else{alert('请先选择日志类型');this.value='';}">
                 <button type="button" onclick="document.getElementById('logFileInput').click()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-all border border-slate-700">
                     <i class="fas fa-upload mr-1"></i>上传日志
                 </button>
@@ -208,10 +242,10 @@
                     </div>
                 </div>
                 <div class="flex gap-2">
-                    <a href="{{ log_file.file.url }}" class="text-blue-400 hover:text-blue-300 px-2" title="下载">
-                        <i class="fas fa-download"></i>
+                    <a href="{% url 'abnormal:log_file_view' log_file.pk %}" target="_blank" class="text-blue-400 hover:text-blue-300 px-2" title="查看">
+                        <i class="fas fa-eye"></i>
                     </a>
-                    <a href="{% url 'log_file_delete' log_file.pk %}" class="text-red-400 hover:text-red-300 px-2" title="删除" onclick="return confirm('确定删除此日志文件？')">
+                    <a href="{% url 'abnormal:log_file_delete' log_file.pk %}" class="text-red-400 hover:text-red-300 px-2" title="删除" onclick="return confirm('确定删除此日志文件？')">
                         <i class="fas fa-trash"></i>
                     </a>
                 </div>

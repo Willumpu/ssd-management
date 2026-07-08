@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}异常样品组管理 - SSD FAE业务管理系统{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 页面标题和操作栏 -->
+    <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <h2 class="text-xl font-semibold text-white">异常样品组管理</h2>
+            <a href="{% url 'abnormal:abnormal_list' %}" class="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-all text-sm">
+                <i class="fas fa-vial mr-1"></i>异常样品
+            </a>
+        </div>
+        <a href="{% url 'abnormal:group_create' %}" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all shadow-lg shadow-red-600/20 flex items-center gap-2">
+            <i class="fas fa-plus"></i>
+            <span>创建异常样品组</span>
+        </a>
+    </div>
+
+    <!-- 筛选和搜索 -->
+    <div class="glass rounded-xl p-4 border border-slate-700/50">
+        <div class="flex flex-wrap gap-4 justify-between items-center">
+            <!-- 状态筛选 -->
+            <div class="flex gap-2">
+                <a href="?status=" class="px-4 py-2 rounded-lg {% if not current_status %}bg-red-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    全部
+                </a>
+                <a href="?status=pending_analysis" class="px-4 py-2 rounded-lg {% if current_status == 'pending_analysis' %}bg-yellow-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    待分析
+                </a>
+                <a href="?status=retesting" class="px-4 py-2 rounded-lg {% if current_status == 'retesting' %}bg-blue-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    复测中
+                </a>
+                <a href="?status=resolved" class="px-4 py-2 rounded-lg {% if current_status == 'resolved' %}bg-green-600 text-white{% else %}bg-slate-800 text-slate-400 hover:bg-slate-700{% endif %} text-sm font-medium transition-all">
+                    已解决
+                </a>
+            </div>
+
+            <!-- 搜索框 -->
+            <form method="get" class="flex gap-2">
+                <input type="hidden" name="status" value="{{ current_status }}">
+                <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="搜索组编号/客户..."
+                    class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-red-500 w-64 placeholder-slate-500">
+                <button type="submit" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-all">
+                    <i class="fas fa-search"></i>
+                </button>
+                {% if search_query %}
+                <a href="?status={{ current_status }}" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- 样品组列表 - 桌面端 -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">组编号</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">客户</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">当前状态</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">优先级</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">样品数量</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">负责人</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">创建时间</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for group in groups %}
+                <tr class="table-row-hover border-l-2 border-transparent hover:border-red-500 cursor-pointer"
+                    onclick="window.location.href='{% url 'abnormal:group_detail' group.pk %}'">
+                    <td class="px-6 py-4 mono text-red-400 whitespace-nowrap">{{ group.group_number }}</td>
+                    <td class="px-6 py-4 font-medium text-white whitespace-nowrap">{{ group.customer.customer_code }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if group.status == 'pending_analysis' %}
+                        <span class="px-2 py-1 rounded text-xs status-pending font-medium">待分析</span>
+                        {% elif group.status == 'retesting' %}
+                        <span class="px-2 py-1 rounded text-xs status-processing font-medium">复测中</span>
+                        {% elif group.status == 'resolved' %}
+                        <span class="px-2 py-1 rounded text-xs status-resolved font-medium">已解决</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if group.priority == 'urgent' %}
+                        <span class="px-2 py-1 rounded text-xs status-urgent font-medium">紧急</span>
+                        {% elif group.priority == 'high' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(249, 115, 22, 0.2); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);">高</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">一般</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-slate-300 whitespace-nowrap">{{ group.total_count }}</td>
+                    <td class="px-6 py-4 text-slate-300 whitespace-nowrap">{% if group.assignee %}{{ group.assignee.get_full_name|default:group.assignee.username }}{% else %}-{% endif %}</td>
+                    <td class="px-6 py-4 text-slate-500 whitespace-nowrap">{{ group.created_at|date:'Y-m-d H:i' }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                        <p>暂无异常样品组记录</p>
+                        {% if search_query %}
+                        <p class="text-sm mt-2">没有找到匹配 "{{ search_query }}" 的结果</p>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 样品组列表 - 移动端卡片 -->
+    <div class="lg:hidden space-y-3">
+        {% for group in groups %}
+        <a href="{% url 'abnormal:group_detail' group.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-red-500/30 transition-all active:scale-98">
+            <div class="flex justify-between items-start mb-2">
+                <span class="text-white text-sm font-medium mono">{{ group.group_number }}</span>
+                <span class="px-2 py-1 rounded text-xs {% if group.status == 'pending_analysis' %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% elif group.status == 'retesting' %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% else %}bg-green-500/20 text-green-400 border border-green-500/30{% endif %}">
+                    {% if group.status == 'pending_analysis' %}待分析{% elif group.status == 'retesting' %}复测中{% else %}已解决{% endif %}
+                </span>
+            </div>
+            <div class="text-xs text-slate-400 mb-1">{{ group.customer.customer_code }}</div>
+            <div class="flex justify-between items-center text-xs mt-2">
+                <span class="text-slate-500">{{ group.total_count }} 片</span>
+                <span class="px-2 py-0.5 rounded text-xs {% if group.priority == 'urgent' %}bg-red-500/20 text-red-400 border border-red-500/30{% elif group.priority == 'high' %}bg-orange-500/20 text-orange-400 border border-orange-500/30{% else %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% endif %}">
+                    {% if group.priority == 'urgent' %}紧急{% elif group.priority == 'high' %}高{% else %}一般{% endif %}
+                </span>
+            </div>
+            <div class="text-xs text-slate-600 mt-1">{% if group.assignee %}{{ group.assignee.get_full_name|default:group.assignee.username }}{% else %}-{% endif %} · {{ group.created_at|date:'Y-m-d H:i' }}</div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-slate-500">
+            <i class="fas fa-inbox text-4xl mb-4 block"></i>
+            <p>暂无异常样品组记录</p>
+            {% if search_query %}
+            <p class="text-sm mt-2">没有找到匹配 "{{ search_query }}" 的结果</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 分页 -->
+    {% if is_paginated %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-left"></i>
+        </a>
+        {% endif %}
+
+        <span class="px-4 py-2 rounded-lg bg-red-600 text-white">
+            {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% if search_query %}&search={{ search_query }}{% endif %}"
+            class="px-4 py-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all">
+            <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

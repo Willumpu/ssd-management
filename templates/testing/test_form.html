@@ -18,6 +18,21 @@
             {% if request.GET.fae_task %}
             <input type="hidden" name="fae_task" value="{{ request.GET.fae_task }}">
             {% endif %}
+            {% if request.GET.abnormal_group %}
+            <input type="hidden" name="abnormal_group" value="{{ request.GET.abnormal_group }}">
+            {% endif %}
+            {% if request.GET.source_test %}
+            <input type="hidden" name="source_test" value="{{ request.GET.source_test }}">
+            <input type="hidden" name="branch_type" value="{{ request.GET.branch_type }}">
+            <div class="rounded-lg bg-blue-600/10 border border-blue-500/30 p-4 mb-4">
+                <div class="flex items-center gap-2 text-blue-400 text-sm mb-1">
+                    <i class="fas fa-project-diagram"></i>
+                    <span>从桑基图创建分支测试项</span>
+                </div>
+                <p class="text-slate-300 text-sm">来源测试项：<span class="text-white font-medium">{{ form.source_test_obj.test_number }} ({{ form.source_test_obj.get_test_content_display }})</span></p>
+                <p class="text-slate-300 text-sm">分支类型：<span class="text-white font-medium">{% if request.GET.branch_type == 'passed' %}通过分支{% else %}失败/异常分支{% endif %}</span></p>
+            </div>
+            {% endif %}
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- 跟踪人 -->
@@ -74,6 +89,56 @@
                     </select>
                 </div>
 
+                <!-- 样品来源 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">样品来源</label>
+                    <input type="text" name="sample_source" value="{{ form.sample_source.value|default:'' }}"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                           placeholder="请输入样品来源">
+                </div>
+
+                <!-- 关联异常样品组 -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm text-slate-400">关联异常样品组</label>
+                        {% if object %}
+                        <a href="{% url 'abnormal:group_create' %}?test_item={{ object.pk }}" target="_blank" class="text-xs text-orange-400 hover:text-orange-300 transition-colors">
+                            <i class="fas fa-plus mr-1"></i>新建异常样品组
+                        </a>
+                        {% endif %}
+                    </div>
+                    <select name="abnormal_group"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择异常样品组（可选）</option>
+                        {% for group in form.abnormal_group.field.queryset %}
+                        <option value="{{ group.pk }}" {% if form.abnormal_group.value == group.pk %}selected{% endif %}>
+                            {{ group.group_number }} - {{ group.customer.customer_code }} ({{ group.total_count }}片)
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-xs text-slate-500 mt-1">选择后自动关联该组内所有异常样品，并为其添加测试记录</p>
+                </div>
+
+                <!-- 关联异常样品 -->
+                <div class="md:col-span-2">
+                    <label class="block text-sm text-slate-400 mb-2">关联异常样品</label>
+                    <div class="border border-slate-700 rounded-lg bg-slate-800 p-3 max-h-60 overflow-y-auto space-y-1">
+                        {% with selected_ids=form.abnormal_samples.value|default:form.fields.abnormal_samples.initial|default:'' %}
+                        {% for sample in form.abnormal_samples.field.queryset %}
+                        <label class="flex items-center gap-2.5 cursor-pointer hover:bg-slate-700/50 px-2 py-1.5 rounded transition-colors">
+                            <input type="checkbox" name="abnormal_samples" value="{{ sample.pk }}"
+                                   {% if sample.pk|stringformat:'s' in selected_ids %}checked{% endif %}
+                                   class="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 focus:ring-1 bg-slate-700 cursor-pointer">
+                            <span class="text-sm text-slate-300 select-none">{{ sample.sample_number }} - {{ sample.customer.customer_code }} {% if sample.group %}({{ sample.group.group_number }}){% endif %} <span class="text-slate-500 text-xs">{{ sample.get_log_type_display|default:'未知日志' }}</span></span>
+                        </label>
+                        {% empty %}
+                        <p class="text-sm text-slate-500 px-2 py-1">暂无可用异常样品</p>
+                        {% endfor %}
+                        {% endwith %}
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">勾选后直接关联异常样品并添加测试记录</p>
+                </div>
+
                 <!-- 测试状态（仅编辑时） -->
                 {% if object %}
                 <div>
@@ -112,7 +177,6 @@
                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
                 </div>
 
-                {% if object %}
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">通过数量</label>
                     <input type="number" name="passed_samples" value="{{ form.passed_samples.value|default:0 }}" min="0"
@@ -124,7 +188,38 @@
                     <input type="number" name="abnormal_samples_count" value="{{ form.abnormal_samples_count.value|default:0 }}" min="0"
                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
                 </div>
-                {% endif %}
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">测试中数量</label>
+                    <input type="number" name="testing_samples" value="{{ form.testing_samples.value|default:0 }}" min="0"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">复测中数量</label>
+                    <input type="number" name="retesting_samples" value="{{ form.retesting_samples.value|default:0 }}" min="0"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- 测试参数 -->
+            <div class="border-t border-slate-800 pt-6 mt-6">
+                <h4 class="text-sm font-medium text-white mb-4 flex items-center gap-2">
+                    <i class="fas fa-sliders-h text-blue-400"></i>测试参数
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% for field in form %}
+                        {% if field.name|slice:":6" == "param_" %}
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <p class="text-red-400 text-xs mt-1">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
             </div>
 
             <!-- Submit Buttons -->

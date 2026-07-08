@@ -8,23 +8,28 @@
     <!-- 日期选择器 & 操作栏 -->
     <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
         <div class="flex items-center gap-3">
-            <a href="?date={{ prev_date|date:'Y-m-d' }}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
+            <a href="?date={{ prev_date|date:'Y-m-d' }}{% if selected_assignee %}&assignee={{ selected_assignee.pk }}{% endif %}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
                 <i class="fas fa-chevron-left"></i>
             </a>
             <form method="get" class="flex items-center gap-2">
                 <input type="date" name="date" value="{{ report_date|date:'Y-m-d' }}"
                        class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                        onchange="this.form.submit()">
+                <select name="assignee" onchange="this.form.submit()"
+                        class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                    <option value="">全部负责人</option>
+                    {% for fae_user in fae_users %}
+                    <option value="{{ fae_user.pk }}" {% if selected_assignee and selected_assignee.pk == fae_user.pk %}selected{% endif %}>
+                        {{ fae_user.get_full_name|default:fae_user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
             </form>
-            <a href="?date={{ next_date|date:'Y-m-d' }}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
+            <a href="?date={{ next_date|date:'Y-m-d' }}{% if selected_assignee %}&assignee={{ selected_assignee.pk }}{% endif %}" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">
                 <i class="fas fa-chevron-right"></i>
             </a>
         </div>
         <div class="flex gap-2">
-            <button onclick="copyReportText()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors flex items-center gap-2">
-                <i class="fas fa-copy"></i>
-                <span>复制纯文本</span>
-            </button>
             <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm font-medium transition-colors flex items-center gap-2">
                 <i class="fas fa-print"></i>
                 <span>打印</span>
@@ -68,6 +73,10 @@
                 <p class="text-xs text-slate-500">当日新建或有动态跟进的所有 FAE 任务</p>
             </div>
             <span class="ml-auto px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">{{ today_tasks|length }}</span>
+            <button onclick="copyReportText('text-report-tasks', this)" class="ml-2 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors text-xs flex items-center gap-1" title="复制纯文本">
+                <i class="fas fa-copy"></i>
+                <span class="hidden sm:inline">复制</span>
+            </button>
         </div>
         {% if today_tasks %}
         <div class="overflow-x-auto">
@@ -123,6 +132,10 @@
                 <p class="text-xs text-slate-500">当日所有操作记录，按时间倒序排列</p>
             </div>
             <span class="ml-auto px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs font-medium">{{ actions|length }}</span>
+            <button onclick="copyReportText('text-report-actions', this)" class="ml-2 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors text-xs flex items-center gap-1" title="复制纯文本">
+                <i class="fas fa-copy"></i>
+                <span class="hidden sm:inline">复制</span>
+            </button>
         </div>
         {% if actions %}
         <div class="overflow-x-auto">
@@ -174,32 +187,13 @@
                 <p class="text-xs text-slate-500">当日完成、解决或产出结果的事项</p>
             </div>
             <span class="ml-auto px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">{{ stats.conclusions }}</span>
+            <button onclick="copyReportText('text-report-conclusions', this)" class="ml-2 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors text-xs flex items-center gap-1" title="复制纯文本">
+                <i class="fas fa-copy"></i>
+                <span class="hidden sm:inline">复制</span>
+            </button>
         </div>
 
         <div class="divide-y divide-slate-800">
-            <!-- 已完成的 FAE 任务 -->
-            {% if completed_tasks %}
-            <div class="px-4 lg:px-6 py-4">
-                <h4 class="text-sm font-medium text-blue-400 mb-3 flex items-center gap-2">
-                    <i class="fas fa-headset"></i>
-                    已完成的 FAE 任务
-                    <span class="text-slate-500">({{ completed_tasks|length }})</span>
-                </h4>
-                <div class="space-y-2">
-                    {% for task in completed_tasks %}
-                    <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800 hover:border-blue-500/30 transition-colors cursor-pointer"
-                         onclick="window.location.href='{% url 'fae:task_detail' task.pk %}'">
-                        <span class="text-white font-medium text-sm whitespace-nowrap">{{ task.task_number }}</span>
-                        <span class="text-slate-400 text-sm">{{ task.customer.customer_code }}</span>
-                        <span class="text-slate-300 text-sm flex-1 truncate">{{ task.summary|default:'-' }}</span>
-                        <span class="text-slate-500 text-xs whitespace-nowrap">{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
-                        <span class="px-2 py-0.5 rounded text-xs status-resolved whitespace-nowrap">已结束</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
             <!-- 已完成的测试项 -->
             {% if completed_tests %}
             <div class="px-4 lg:px-6 py-4">
@@ -247,7 +241,7 @@
             </div>
             {% endif %}
 
-            {% if not completed_tasks and not completed_tests and not resolved_abnormals %}
+            {% if not completed_tests and not resolved_abnormals %}
             <div class="px-4 lg:px-6 py-12 text-center text-slate-500">
                 <i class="fas fa-inbox text-4xl mb-4"></i>
                 <p>当日无完成事项</p>
@@ -258,41 +252,17 @@
 </div>
 
 <!-- 纯文本报告（隐藏，用于复制） -->
-<div id="text-report" style="position:absolute;left:-9999px;">
-SSD FAE 业务日报 - {{ report_date|date:"Y年m月d日" }}
-生成人: {{ user.get_full_name|default:user.username }}
+<div id="text-report-tasks" style="position:absolute;left:-9999px;white-space:pre-wrap;">{% if today_tasks %}{% for task in today_tasks %}
+{{ forloop.counter }}. {{ task.summary|default:"-" }}{% endfor %}{% else %}无
+{% endif %}</div>
 
-【今日任务】({{ today_tasks|length }})
-{% if today_tasks %}{% for task in today_tasks %}
-{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.get_task_type_display }} | {{ task.assignee.get_full_name|default:task.assignee.username }} | {{ task.get_status_display }} | {{ task.summary|default:"-" }}
-{% endfor %}{% else %}无
-{% endif %}
+<div id="text-report-actions" style="position:absolute;left:-9999px;white-space:pre-wrap;">{% if actions %}{% for act in actions %}
+{{ forloop.counter }}. {{ act.summary_text }}{% endfor %}{% else %}无
+{% endif %}</div>
 
-【今日行动】({{ actions|length }})
-{% if actions %}{% for act in actions %}
-{{ act.time|date:"H:i" }} | {{ act.category }} | {{ act.target }} | {{ act.action }} | {{ act.operator }}{% if act.comment %} | {{ act.comment }}{% endif %}
-{% endfor %}{% else %}无
-{% endif %}
-
-【今日结论】({{ stats.conclusions }})
-{% if completed_tasks %}
--- 已完成的 FAE 任务 ({{ completed_tasks|length }}) --
-{% for task in completed_tasks %}
-{{ forloop.counter }}. {{ task.task_number }} | {{ task.customer.customer_code }} | {{ task.summary|default:"-" }} | {{ task.assignee.get_full_name|default:task.assignee.username }}
-{% endfor %}{% endif %}
-{% if completed_tests %}
--- 已完成的测试项 ({{ completed_tests|length }}) --
-{% for test in completed_tests %}
-{{ forloop.counter }}. {{ test.test_number }} | {{ test.customer.customer_code }} | {{ test.get_test_content_display }} | {{ test.tracker.get_full_name|default:test.tracker.username }}
-{% endfor %}{% endif %}
-{% if resolved_abnormals %}
--- 已解决的异常样品 ({{ resolved_abnormals|length }}) --
-{% for sample in resolved_abnormals %}
-{{ forloop.counter }}. {{ sample.sample_number }} | {{ sample.customer.customer_code }} | {% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}
-{% endfor %}{% endif %}
-{% if not completed_tasks and not completed_tests and not resolved_abnormals %}无
-{% endif %}
-</div>
+<div id="text-report-conclusions" style="position:absolute;left:-9999px;white-space:pre-wrap;">{% if completed_tests %}{% for test in completed_tests %}
+{{ forloop.counter }}. {{ test.total_samples }}片{% if test.solution %}{{ test.solution.flash_model.name }}x{{ test.solution.flash_count }}{% else %}-x-{% endif %}方案样品进行{{ test.get_test_content_display }}测试，通过{{ test.passed_samples }}片，异常{{ test.abnormal_samples_count }}片{% endfor %}{% else %}无
+{% endif %}</div>
 
 <style>
 @media print {
@@ -318,18 +288,15 @@ SSD FAE 业务日报 - {{ report_date|date:"Y年m月d日" }}
 </style>
 
 <script>
-function copyReportText() {
-    const text = document.getElementById('text-report').innerText;
+function copyReportText(elementId, btn) {
+    const text = document.getElementById(elementId).textContent.trim();
     navigator.clipboard.writeText(text).then(() => {
-        const btn = document.querySelector('button[onclick="copyReportText()"]');
         const original = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i><span>已复制</span>';
-        btn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
-        btn.classList.add('bg-green-600', 'hover:bg-green-500');
+        btn.innerHTML = '<i class="fas fa-check"></i><span class="hidden sm:inline">已复制</span>';
+        btn.classList.add('text-green-400');
         setTimeout(() => {
             btn.innerHTML = original;
-            btn.classList.add('bg-blue-600', 'hover:bg-blue-500');
-            btn.classList.remove('bg-green-600', 'hover:bg-green-500');
+            btn.classList.remove('text-green-400');
         }, 2000);
     }).catch(() => {
         alert('复制失败，请手动复制');

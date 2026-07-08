@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ fae_task.task_number }} - 测试流程桑基图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        body { background: #0f172a; margin: 0; padding: 0; color: #e2e8f0; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-in { animation: slideIn 0.3s ease-out; }
+    </style>
+</head>
+<body>
+<script>
+    // 全局状态
+    let lastSankeyData = null;
+    let selectedNodes = new Set();
+    let mergeMode = {active: false, selectedIds: new Set(), nodesData: []};
+    let selectedNodeId = null;
+    let lastNodeElementMap = {};
+    let lastFlowPathMap = {};
+    let lastFlowLabelMap = {};
+    const faeTaskId = {{ fae_task.pk }};
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+    // 获取 Cookie 中的 CSRF Token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function fetchSankeyData() {
+        return fetch(`/testing/sankey/data/${faeTaskId}/?t=${Date.now()}`)
+            .then(r => {
+                if (!r.ok) {
+                    return r.text().then(text => { throw new Error(`HTTP ${r.status}: ${text.substring(0,200)}`); });
+                }
+                return r.json();
+            });
+    }
+
+    function renderChart(data) {
+        try {
+            _renderChart(data);
+        } catch (err) {
+            console.error('renderChart error:', err);
+            const container = document.getElementById('sankey-chart');
+            if (container) {
+                container.innerHTML = `<div class="flex items-center justify-center h-full text-red-400 flex-col gap-2">
+                    <span>渲染失败: ${err.message}</span>
+                    <span class="text-xs text-slate-500">请按 F12 查看控制台详情</span>
+                </div>`;
+            }
+        }
+    }
+
+    function clearNodeHighlight() {
+        Object.values(lastNodeElementMap).forEach(el => {
+            el.style.opacity = '1';
+            el.style.filter = 'none';
+            const n = el.__nodeData;
+            const r = el.querySelector('rect');
+            const sel = mergeMode.active && mergeMode.selectedIds.has(n.id);
+            if (r) {
+                r.setAttribute('stroke', sel ? '#ffffff' : '#1e293b');
+                r.setAttribute('stroke-width', sel ? '3' : '2');
+            }
+        });
+        Object.values(lastFlowPathMap).forEach(el => {
+            el.style.opacity = '1';
+            el.setAttribute('stroke', 'none');
+        });
+        Object.values(lastFlowLabelMap).forEach(lbl => {
+            lbl.bg.style.opacity = '1';
+            lbl.text.style.opacity = '1';
+        });
+    }
+    window.clearNodeHighlight = clearNodeHighlight;
+
+    function applyNodeHighlight(nodeId) {
+        if (!lastSankeyData) return;
+        const outgoingMap = {};
+        const incomingMap = {};
+        (lastSankeyData.links || []).forEach(link => {
+            if (link.sourceId !== undefined && link.targetId !== undefined) {
+                if (!outgoingMap[link.sourceId]) outgoingMap[link.sourceId] = [];
+                outgoingMap[link.sourceId].push(link.targetId);
+                if (!incomingMap[link.targetId]) incomingMap[link.targetId] = [];
+                incomingMap[link.targetId].push(link.sourceId);
+            }
+        });
+        const related = new Set([nodeId]);
+        let queue = [nodeId];
+        while (queue.length) {
+            const id = queue.shift();
+            (incomingMap[id] || []).forEach(srcId => { if (!related.has(srcId)) { related.add(srcId); queue.push(srcId); }});
+        }
+        queue = [nodeId];
+        while (queue.length) {
+            const id = queue.shift();
+            (outgoingMap[id] || []).forEach(tgtId => { if (!related.has(tgtId)) { related.add(tgtId); queue.push(tgtId); }});
+        }
+        Object.values(lastNodeElementMap).forEach(el => {
+            el.style.opacity = '0.4';
+            el.style.filter = 'grayscale(0.5)';
+        });
+        Object.values(lastFlowPathMap).forEach(el => { el.style.opacity = '0.15'; });
+        Object.values(lastFlowLabelMap).forEach(lbl => {
+            lbl.bg.style.opacity = '0.15';
+            lbl.text.style.opacity = '0.15';
+        });
+        related.forEach(id => {
+            const el = lastNodeElementMap[id];
+            if (el) {
+                el.style.opacity = '1';
+                el.style.filter = 'none';
+                const r = el.querySelector('rect');
+                if (r) { r.setAttribute('stroke', '#ffffff'); r.setAttribute('stroke-width', '3'); }
+            }
+        });
+        (lastSankeyData.links || []).forEach(link => {
+            if (related.has(link.sourceId) && related.has(link.targetId)) {
+                const pathEl = lastFlowPathMap[link.id];
+                if (pathEl) {
+                    pathEl.style.opacity = '0.9';
+                    pathEl.setAttribute('stroke', 'rgba(255,255,255,0.5)');
+                    pathEl.setAttribute('stroke-width', '1.5');
+                }
+                const lbl = lastFlowLabelMap[link.id];
+                if (lbl) {
+                    lbl.bg.style.opacity = '1';
+                    lbl.text.style.opacity = '1';
+                }
+            }
+        });
+    }
+
+    function _renderChart(data) {
+        const container = document.getElementById('sankey-chart');
+        if (!container) {
+            console.error('Chart container not found');
+            return;
+        }
+
+        if (!data.nodes || data.nodes.length === 0) {
+            container.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400 flex-col gap-3">
+                <i class="fas fa-project-diagram text-2xl"></i>
+                <span>暂无测试流程数据</span>
+                <a href="/testing/create/?fae_task=${faeTaskId}" target="_blank" class="mt-2 px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm flex items-center gap-2 transition-colors">
+                    <i class="fas fa-plus"></i>创建测试项
+                </a>
+                <span class="text-xs text-slate-500">或右键初始节点创建分支</span>
+            </div>`;
+            return;
+        }
+
+        // 清空容器
+        container.innerHTML = '';
+
+        // 获取容器尺寸
+        const rect = container.getBoundingClientRect();
+        const width = Math.max(rect.width || container.clientWidth || 800, 400);
+        const height = Math.max(rect.height || container.clientHeight || 600, 300);
+
+        // 创建 SVG
+        const svgNs = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNs, 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.style.display = 'block';
+        svg.style.cursor = 'grab';
+        container.appendChild(svg);
+
+        // viewBox 状态（用于缩放拖拽）
+        let vbX = 0, vbY = 0, vbW = width, vbH = height;
+        let svgWidth = width; // 用于滚轮缩放的参考宽度
+        function updateViewBox() {
+            svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+        }
+        updateViewBox();
+
+        // 滚轮缩放
+        svg.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = svg.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / rect.width;
+            const my = (e.clientY - rect.top) / rect.height;
+            const factor = e.deltaY > 0 ? 1.1 : 0.9;
+            const newW = Math.max(200, Math.min(vbW * factor, svgWidth * 5));
+            const newH = newW * (height / svgWidth);
+            vbX += mx * (vbW - newW);
+            vbY += my * (vbH - newH);
+            vbW = newW;
+            vbH = newH;
+            updateViewBox();
+        }, {passive: false});
+
+        // 拖拽平移
+        let isPanning = false;
+        let hasPanned = false;
+        let panStartX, panStartY, panStartVBX, panStartVBY;
+        svg.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && !e.target.closest('g')) {
+                isPanning = true;
+                hasPanned = false;
+                panStartX = e.clientX;
+                panStartY = e.clientY;
+                panStartVBX = vbX;
+                panStartVBY = vbY;
+                svg.style.cursor = 'grabbing';
+            }
+        });
+        const onMove = (e) => {
+            if (isPanning) {
+                const dxPixels = Math.abs(e.clientX - panStartX);
+                const dyPixels = Math.abs(e.clientY - panStartY);
+                if (dxPixels > 3 || dyPixels > 3) {
+                    hasPanned = true;
+                }
+                const dx = (e.clientX - panStartX) * (vbW / svg.clientWidth);
+                const dy = (e.clientY - panStartY) * (vbH / svg.clientHeight);
+                vbX = panStartVBX - dx;
+                vbY = panStartVBY - dy;
+                updateViewBox();
+            }
+        };
+        const onUp = () => {
+            isPanning = false;
+            svg.style.cursor = 'grab';
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        // 清理旧监听器（防止重复绑定）
+        if (svg._cleanupPan) svg._cleanupPan();
+        svg._cleanupPan = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+
+        // 布局参数
+        const nodeWidth = 160;
+        const nodeHeight = 44;
+        const nodeGapY = 36;
+        const paddingX = 50;
+        const paddingY = 40;
+        const levelWidth = 280;  // 每层固定宽度
+        const colorMap = {initial:'#94a3b8', pass:'#22c55e', fail:'#ef4444', subcategory:'#f97316', abnormal_category:'#ef4444', merged:'#8b5cf6'};
+
+        // 子类节点缩小一倍
+        function getNodeSize(node) {
+            if (node.nodeType === 'subcategory' || node.nodeType === 'abnormal_category') {
+                return {width: nodeWidth * 0.5, height: nodeHeight * 0.5};
+            }
+            return {width: nodeWidth, height: nodeHeight};
+        }
+
+        // 计算最大深度，动态调整 viewBox 宽度
+        const maxDepth = Math.max(...data.nodes.map(n => n.depth || 0));
+        svgWidth = Math.max(width, paddingX * 2 + (Math.ceil(maxDepth) + 1) * levelWidth);
+        vbW = svgWidth;
+        vbH = height;
+        updateViewBox();
+
+        // 按整数深度分组（小数深度向上取整到同一列，避免水平重叠）
+        const depthGroups = {};
+        data.nodes.forEach(node => {
+            const d = Math.ceil(node.depth || 0);
+            if (!depthGroups[d]) depthGroups[d] = [];
+            depthGroups[d].push(node);
+        });
+
+        // 计算节点位置：按深度逐层计算，每层根据源节点Y坐标排序以减少流交叉
+        const nodePositions = {};
+        const sortedDepths = Object.keys(depthGroups).map(Number).sort((a, b) => a - b);
+
+        sortedDepths.forEach(depth => {
+            const group = depthGroups[depth];
+
+            // 非首层节点：按源节点平均Y坐标排序
+            if (depth > 0) {
+                group.forEach(node => {
+                    let sumY = 0, count = 0;
+                    (data.links || []).forEach(link => {
+                        // 匹配当前节点的入边（优先用ID，回退到名称）
+                        const isTarget = (link.targetId !== undefined && link.targetId === node.id) ||
+                                         (link.targetId === undefined && link.target === node.name);
+                        if (isTarget) {
+                            const srcId = link.sourceId !== undefined ? link.sourceId :
+                                (data.nodes.find(n => n.name === link.source)?.id);
+                            if (srcId !== undefined) {
+                                const srcPos = nodePositions[srcId];
+                                if (srcPos) {
+                                    sumY += srcPos.y + srcPos.height / 2;
+                                    count++;
+                                }
+                            }
+                        }
+                    });
+                    node._sortY = count > 0 ? sumY / count : Infinity;
+                });
+                group.sort((a, b) => a._sortY - b._sortY);
+            }
+
+            const totalHeight = group.reduce((sum, node) => sum + getNodeSize(node).height, 0) + (group.length - 1) * nodeGapY;
+            const startY = paddingY + (height - paddingY * 2 - totalHeight) / 2;
+
+            let currentY = startY;
+            group.forEach(node => {
+                const sz = getNodeSize(node);
+                const x = paddingX + depth * levelWidth;
+                nodePositions[node.id] = {x, y: currentY, width: sz.width, height: sz.height, node};
+                currentY += sz.height + nodeGapY;
+            });
+        });
+
+        // 应用用户自定义的 Y 坐标
+        data.nodes.forEach(node => {
+            if (node.customY !== null && node.customY !== undefined && nodePositions[node.id]) {
+                nodePositions[node.id].y = node.customY;
+            }
+        });
+
+        // 计算最大流值
+        const maxValue = Math.max(...(data.links || []).map(l => l.value || 1), 1);
+        const maxFlowHeight = nodeHeight * 0.7;
+
+        // 创建 defs
+        const defs = document.createElementNS(svgNs, 'defs');
+        svg.appendChild(defs);
+
+        // 阴影滤镜（兼容版）
+        const filter = document.createElementNS(svgNs, 'filter');
+        filter.setAttribute('id', 'node-shadow');
+        filter.setAttribute('x', '-20%');
+        filter.setAttribute('y', '-20%');
+        filter.setAttribute('width', '140%');
+        filter.setAttribute('height', '140%');
+        const feGaussianBlur = document.createElementNS(svgNs, 'feGaussianBlur');
+        feGaussianBlur.setAttribute('in', 'SourceAlpha');
+        feGaussianBlur.setAttribute('stdDeviation', '3');
+        feGaussianBlur.setAttribute('result', 'blur');
+        const feOffset = document.createElementNS(svgNs, 'feOffset');
+        feOffset.setAttribute('in', 'blur');
+        feOffset.setAttribute('dx', '0');
+        feOffset.setAttribute('dy', '2');
+        feOffset.setAttribute('result', 'offsetBlur');
+        const feFlood = document.createElementNS(svgNs, 'feFlood');
+        feFlood.setAttribute('flood-color', 'rgba(0,0,0,0.3)');
+        feFlood.setAttribute('result', 'color');
+        const feComposite = document.createElementNS(svgNs, 'feComposite');
+        feComposite.setAttribute('in', 'color');
+        feComposite.setAttribute('in2', 'offsetBlur');
+        feComposite.setAttribute('operator', 'in');
+        feComposite.setAttribute('result', 'shadow');
+        const feMerge = document.createElementNS(svgNs, 'feMerge');
+        const feMergeNode1 = document.createElementNS(svgNs, 'feMergeNode');
+        feMergeNode1.setAttribute('in', 'shadow');
+        const feMergeNode2 = document.createElementNS(svgNs, 'feMergeNode');
+        feMergeNode2.setAttribute('in', 'SourceGraphic');
+        feMerge.appendChild(feMergeNode1);
+        feMerge.appendChild(feMergeNode2);
+        filter.appendChild(feGaussianBlur);
+        filter.appendChild(feOffset);
+        filter.appendChild(feFlood);
+        filter.appendChild(feComposite);
+        filter.appendChild(feMerge);
+        defs.appendChild(filter);
+
+        // 构建邻接表
+        const outgoingMap = {};
+        const incomingMap = {};
+        (data.links || []).forEach(link => {
+            if (link.sourceId !== undefined && link.targetId !== undefined) {
+                if (!outgoingMap[link.sourceId]) outgoingMap[link.sourceId] = [];
+                outgoingMap[link.sourceId].push(link.targetId);
+                if (!incomingMap[link.targetId]) incomingMap[link.targetId] = [];
+                incomingMap[link.targetId].push(link.sourceId);
+            }
+        });
+
+        // BFS 查找所有相关节点（上游+下游+当前）
+        function getRelatedNodes(nodeId) {
+            const related = new Set([nodeId]);
+            let queue = [nodeId];
+            while (queue.length) {
+                const id = queue.shift();
+                const sources = incomingMap[id] || [];
+                sources.forEach(srcId => {
+                    if (!related.has(srcId)) { related.add(srcId); queue.push(srcId); }
+                });
+            }
+            queue = [nodeId];
+            while (queue.length) {
+                const id = queue.shift();
+                const targets = outgoingMap[id] || [];
+                targets.forEach(tgtId => {
+                    if (!related.has(tgtId)) { related.add(tgtId); queue.push(tgtId); }
+                });
+            }
+            return related;
+        }
+
+        // 绘制流并收集标签位置
+        const flowLabels = [];
+        const flowPathMap = {};
+        (data.links || []).forEach((link, i) => {
+            const src = nodePositions[link.sourceId];
+            const tgt = nodePositions[link.targetId];
+            if (!src || !tgt) return;
+
+            const flowHeight = Math.max((link.value / maxValue) * maxFlowHeight, 4);
+            const srcColor = colorMap[src.node.nodeType] || '#94a3b8';
+            const tgtColor = colorMap[tgt.node.nodeType] || '#94a3b8';
+
+            const sx = src.x + src.width;
+            const sy = src.y + src.height / 2 - flowHeight / 2;
+            const tx = tgt.x;
+            const ty = tgt.y + tgt.height / 2 - flowHeight / 2;
+            const cp1x = sx + 80;
+            const cp2x = tx - 80;
+
+            // 渐变
+            const gradId = `flow-grad-${i}`;
+            const grad = document.createElementNS(svgNs, 'linearGradient');
+            grad.setAttribute('id', gradId);
+            grad.setAttribute('x1', '0%');
+            grad.setAttribute('y1', '0%');
+            grad.setAttribute('x2', '100%');
+            grad.setAttribute('y2', '0%');
+            const stop1 = document.createElementNS(svgNs, 'stop');
+            stop1.setAttribute('offset', '0%');
+            stop1.setAttribute('stop-color', srcColor);
+            stop1.setAttribute('stop-opacity', '0.5');
+            const stop2 = document.createElementNS(svgNs, 'stop');
+            stop2.setAttribute('offset', '100%');
+            stop2.setAttribute('stop-color', tgtColor);
+            stop2.setAttribute('stop-opacity', '0.5');
+            grad.appendChild(stop1);
+            grad.appendChild(stop2);
+            defs.appendChild(grad);
+
+            // 流路径
+            const path = document.createElementNS(svgNs, 'path');
+            const d = `M ${sx} ${sy} C ${cp1x} ${sy}, ${cp2x} ${ty}, ${tx} ${ty} L ${tx} ${ty + flowHeight} C ${cp2x} ${ty + flowHeight}, ${cp1x} ${sy + flowHeight}, ${sx} ${sy + flowHeight} Z`;
+            path.setAttribute('class', 'flow-path');
+            path.setAttribute('data-source-id', link.sourceId);
+            path.setAttribute('data-target-id', link.targetId);
+            path.setAttribute('d', d);
+            path.setAttribute('fill', `url(#${gradId})`);
+            path.setAttribute('stroke', 'none');
+            path.style.pointerEvents = 'none';
+            svg.appendChild(path);
+            flowPathMap[link.id] = path;
+
+            // 计算贝塞尔曲线中点 (t=0.5) 作为标签位置
+            const midX = 0.125 * sx + 0.375 * cp1x + 0.375 * cp2x + 0.125 * tx;
+            const midY = (sy + ty) / 2;
+            if (link.name) {
+                flowLabels.push({x: midX, y: midY, text: link.name, linkId: link.id, sourceId: link.sourceId, targetId: link.targetId, params: link.testItemParams || []});
+            }
+        });
+
+        // 绘制节点
+        const nodeElementMap = {};
+        data.nodes.forEach(node => {
+            const pos = nodePositions[node.id];
+            if (!pos) return;
+
+            const isSelected = mergeMode.active && mergeMode.selectedIds.has(node.id);
+            const g = document.createElementNS(svgNs, 'g');
+            g.setAttribute('class', 'sankey-node');
+            g.setAttribute('data-node-id', node.id);
+            g.__nodeData = node;
+            g.style.cursor = mergeMode.active ? (isSelected ? 'not-allowed' : 'pointer') : 'pointer';
+            g.style.userSelect = 'none';
+            g.ondblclick = (e) => {
+                e.stopPropagation();
+                if (mergeMode.active) return;
+                showNodeMenu(node, e);
+            };
+            
+            g.onmousedown = (e) => {
+                e.stopPropagation();
+                if (mergeMode.active) {
+                    toggleMergeSelection(node.id);
+                    return;
+                }
+                
+                // 解析已有的 transform 偏移（支持连续拖拽不刷新）
+                const existingTransform = g.getAttribute('transform');
+                let existingDy = 0;
+                if (existingTransform) {
+                    const match = existingTransform.match(/translate\(0,\s*([-\d.]+)\)/);
+                    if (match) existingDy = parseFloat(match[1]);
+                }
+                
+                const startClientY = e.clientY;
+                const startY = pos.y + existingDy;
+                let hasDragged = false;
+                
+                const svgRect = svg.getBoundingClientRect();
+                const scaleY = vbH / svgRect.height;
+                
+                const onNodeMove = (ev) => {
+                    const dyPixels = Math.abs(ev.clientY - startClientY);
+                    if (dyPixels > 3) {
+                        hasDragged = true;
+                        svg.style.cursor = 'ns-resize';
+                        const dySvg = (ev.clientY - startClientY) * scaleY;
+                        g.setAttribute('transform', `translate(0, ${existingDy + dySvg})`);
+                        
+                        // 实时更新相关边和标签
+                        if (window._runtimeNodePositions && window._sankeyMeta && lastSankeyData) {
+                            const visualY = startY + dySvg;
+                            window._runtimeNodePositions[node.id].y = visualY;
+                            const {maxValue, maxFlowHeight} = window._sankeyMeta;
+                            
+                            (lastSankeyData.links || []).forEach(link => {
+                                if (link.sourceId !== node.id && link.targetId !== node.id) return;
+                                
+                                const src = window._runtimeNodePositions[link.sourceId];
+                                const tgt = window._runtimeNodePositions[link.targetId];
+                                if (!src || !tgt) return;
+                                
+                                const flowHeight = Math.max((link.value / maxValue) * maxFlowHeight, 4);
+                                const sx = src.x + src.width;
+                                const sy = src.y + src.height / 2 - flowHeight / 2;
+                                const tx = tgt.x;
+                                const ty = tgt.y + tgt.height / 2 - flowHeight / 2;
+                                const cp1x = sx + 80;
+                                const cp2x = tx - 80;
+                                
+                                const path = lastFlowPathMap[link.id];
+                                if (path) {
+                                    const d = `M ${sx} ${sy} C ${cp1x} ${sy}, ${cp2x} ${ty}, ${tx} ${ty} L ${tx} ${ty + flowHeight} C ${cp2x} ${ty + flowHeight}, ${cp1x} ${sy + flowHeight}, ${sx} ${sy + flowHeight} Z`;
+                                    path.setAttribute('d', d);
+                                }
+                                
+                                const label = lastFlowLabelMap[link.id];
+                                if (label && link.name) {
+                                    const midX = 0.125 * sx + 0.375 * cp1x + 0.375 * cp2x + 0.125 * tx;
+                                    const midY = (sy + ty) / 2;
+                                    const lines = link.name.split('\n');
+                                    const lineHeight = 11;
+                                    const maxLen = Math.max(...lines.map(l => l.length));
+                                    const bgW = (maxLen * 7) + 10;
+                                    const bgH = lines.length * lineHeight + 6;
+                                    
+                                    label.bg.setAttribute('x', midX - bgW / 2);
+                                    label.bg.setAttribute('y', midY - bgH / 2 + 2);
+                                    
+                                    const textStartY = midY - ((lines.length - 1) * lineHeight) / 2 + 2;
+                                    Array.from(label.text.querySelectorAll('tspan')).forEach((tspan, i) => {
+                                        tspan.setAttribute('x', midX);
+                                        tspan.setAttribute('y', textStartY + i * lineHeight);
+                                    });
+                                }
+                            });
+                        }
+                    }
+                };
+                
+                const onNodeUp = (ev) => {
+                    document.removeEventListener('mousemove', onNodeMove);
+                    document.removeEventListener('mouseup', onNodeUp);
+                    svg.style.cursor = 'grab';
+                    
+                    if (hasDragged) {
+                        const dySvg = (ev.clientY - startClientY) * scaleY;
+                        const finalY = startY + dySvg;
+                        
+                        // 更新内存数据，不重新渲染以保持视觉稳定
+                        const nodeData = lastSankeyData.nodes.find(n => n.id === node.id);
+                        if (nodeData) nodeData.customY = finalY;
+                        
+                        // 异步保存
+                        fetch(`/testing/sankey/nodes/${node.id}/update-y/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCookie('csrftoken')
+                            },
+                            body: JSON.stringify({custom_y: finalY})
+                        });
+                    } else {
+                        // 点击逻辑
+                        if (selectedNodeId === node.id) {
+                            showNodeMenu(node, e);
+                        } else {
+                            selectedNodeId = node.id;
+                            clearNodeHighlight();
+                            applyNodeHighlight(node.id);
+                        }
+                    }
+                };
+                
+                document.addEventListener('mousemove', onNodeMove);
+                document.addEventListener('mouseup', onNodeUp);
+            };
+
+            // 矩形
+            const rect = document.createElementNS(svgNs, 'rect');
+            rect.setAttribute('x', pos.x);
+            rect.setAttribute('y', pos.y);
+            rect.setAttribute('width', pos.width);
+            rect.setAttribute('height', pos.height);
+            rect.setAttribute('rx', 8);
+            rect.setAttribute('fill', colorMap[node.nodeType] || '#94a3b8');
+            rect.setAttribute('stroke', isSelected ? '#ffffff' : '#1e293b');
+            rect.setAttribute('stroke-width', isSelected ? '3' : '2');
+            rect.setAttribute('filter', 'url(#node-shadow)');
+            g.appendChild(rect);
+
+            // 选中标记
+            if (isSelected) {
+                const check = document.createElementNS(svgNs, 'circle');
+                check.setAttribute('cx', pos.x + pos.width - 8);
+                check.setAttribute('cy', pos.y + 8);
+                check.setAttribute('r', 5);
+                check.setAttribute('fill', '#ffffff');
+                g.appendChild(check);
+            }
+
+            // 异常样品标记
+            const abnormalCount = (node.abnormalIds || []).length;
+            if (abnormalCount > 0) {
+                const badgeGroup = document.createElementNS(svgNs, 'g');
+                const badgeCx = pos.x + pos.width - 10;
+                const badgeCy = pos.y + pos.height - 10;
+                const badgeR = abnormalCount > 9 ? 9 : 7;
+                const badge = document.createElementNS(svgNs, 'circle');
+                badge.setAttribute('cx', badgeCx);
+                badge.setAttribute('cy', badgeCy);
+                badge.setAttribute('r', badgeR);
+                badge.setAttribute('fill', '#fbbf24');
+                badge.setAttribute('stroke', '#1e293b');
+                badge.setAttribute('stroke-width', '1.5');
+                badgeGroup.appendChild(badge);
+                const badgeText = document.createElementNS(svgNs, 'text');
+                badgeText.setAttribute('x', badgeCx);
+                badgeText.setAttribute('y', badgeCy);
+                badgeText.setAttribute('text-anchor', 'middle');
+                badgeText.setAttribute('dominant-baseline', 'middle');
+                badgeText.setAttribute('fill', '#1e293b');
+                badgeText.setAttribute('font-size', abnormalCount > 9 ? '8' : '9');
+                badgeText.style.userSelect = 'none';
+                badgeText.setAttribute('font-weight', 'bold');
+                badgeText.textContent = abnormalCount > 99 ? '99+' : String(abnormalCount);
+                badgeGroup.appendChild(badgeText);
+                g.appendChild(badgeGroup);
+            }
+
+            // 标签（支持多行）
+            const text = document.createElementNS(svgNs, 'text');
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', 'white');
+            text.setAttribute('font-size', '11');
+            text.setAttribute('font-weight', '600');
+            text.style.userSelect = 'none';
+
+            const lines = node.name.split('\n');
+            const lineHeight = 13;
+            const totalTextHeight = lines.length * lineHeight;
+            const startY = pos.y + pos.height / 2 - totalTextHeight / 2 + lineHeight / 2;
+
+            lines.forEach((line, i) => {
+                const tspan = document.createElementNS(svgNs, 'tspan');
+                tspan.setAttribute('x', pos.x + pos.width / 2);
+                tspan.setAttribute('y', startY + i * lineHeight);
+                tspan.setAttribute('dominant-baseline', 'middle');
+                tspan.textContent = line.length > 16 ? line.substring(0, 15) + '…' : line;
+                text.appendChild(tspan);
+            });
+            g.appendChild(text);
+
+            svg.appendChild(g);
+            nodeElementMap[node.id] = g;
+        });
+
+        // 绘制流标签（在节点上层，支持多行）
+        const flowLabelMap = {};
+        flowLabels.forEach(lbl => {
+            const lines = lbl.text.split('\n');
+            const maxLen = Math.max(...lines.map(l => l.length));
+            const lineHeight = 11;
+            const bgW = (maxLen * 7) + 10;
+            const bgH = lines.length * lineHeight + 6;
+
+            const labelBg = document.createElementNS(svgNs, 'rect');
+            labelBg.setAttribute('class', 'flow-label');
+            labelBg.setAttribute('data-source-id', lbl.sourceId);
+            labelBg.setAttribute('data-target-id', lbl.targetId);
+            labelBg.setAttribute('data-params', JSON.stringify(lbl.params || []));
+            labelBg.setAttribute('x', lbl.x - bgW / 2);
+            labelBg.setAttribute('y', lbl.y - bgH / 2 + 2);
+            labelBg.setAttribute('width', bgW);
+            labelBg.setAttribute('height', bgH);
+            labelBg.setAttribute('rx', 4);
+            labelBg.setAttribute('fill', 'rgba(15,23,42,0.85)');
+            labelBg.style.cursor = 'pointer';
+            svg.appendChild(labelBg);
+
+            const text = document.createElementNS(svgNs, 'text');
+            text.setAttribute('class', 'flow-label');
+            text.setAttribute('data-source-id', lbl.sourceId);
+            text.setAttribute('data-target-id', lbl.targetId);
+            text.setAttribute('data-params', JSON.stringify(lbl.params || []));
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', '#94a3b8');
+            text.setAttribute('font-size', '9');
+            text.style.userSelect = 'none';
+            text.style.cursor = 'pointer';
+            text.style.pointerEvents = 'none';
+
+            const startY = lbl.y - ((lines.length - 1) * lineHeight) / 2 + 2;
+            lines.forEach((line, i) => {
+                const tspan = document.createElementNS(svgNs, 'tspan');
+                tspan.setAttribute('x', lbl.x);
+                tspan.setAttribute('y', startY + i * lineHeight);
+                tspan.setAttribute('dominant-baseline', 'middle');
+                tspan.textContent = line;
+                text.appendChild(tspan);
+            });
+            svg.appendChild(text);
+
+            if (lbl.linkId !== undefined) {
+                flowLabelMap[lbl.linkId] = {bg: labelBg, text: text};
+            }
+        });
+
+        // 记录到全局
+        lastNodeElementMap = nodeElementMap;
+        lastFlowPathMap = flowPathMap;
+        lastFlowLabelMap = flowLabelMap;
+        window._nodePositions = nodePositions;
+        window._runtimeNodePositions = JSON.parse(JSON.stringify(nodePositions));
+        window._sankeyMeta = {maxValue, maxFlowHeight, colorMap};
+
+        // 点击空白处取消选中（拖拽后不触发）
+        svg.addEventListener('click', (e) => {
+            if (hasPanned) {
+                hasPanned = false;
+                return;
+            }
+            if (!e.target.closest('g')) {
+                selectedNodeId = null;
+                clearNodeHighlight();
+            }
+        });
+
+        // 流标签悬浮提示
+        const flowTooltip = document.getElementById('flow-param-tooltip');
+        const flowTooltipBody = document.getElementById('flow-param-tooltip-body');
+        if (flowTooltip && flowTooltipBody) {
+            svg.addEventListener('mouseover', (e) => {
+                const labelEl = e.target.closest ? e.target.closest('.flow-label') : null;
+                if (!labelEl) return;
+                const paramsJson = labelEl.getAttribute('data-params');
+                if (!paramsJson) return;
+                let params = [];
+                try { params = JSON.parse(paramsJson); } catch (err) { return; }
+                if (params.length === 0) return;
+                flowTooltipBody.innerHTML = params.map(p => `
+                    <div class="flex justify-between gap-4 text-xs">
+                        <span class="text-slate-400">${p.name}${p.unit ? ' (' + p.unit + ')' : ''}</span>
+                        <span class="text-white font-medium">${p.value}</span>
+                    </div>
+                `).join('');
+                flowTooltip.classList.remove('hidden');
+            });
+            svg.addEventListener('mousemove', (e) => {
+                if (flowTooltip.classList.contains('hidden')) return;
+                const x = e.clientX + 12;
+                const y = e.clientY + 12;
+                const rect = flowTooltip.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width - 8;
+                const maxY = window.innerHeight - rect.height - 8;
+                flowTooltip.style.left = Math.min(x, maxX) + 'px';
+                flowTooltip.style.top = Math.min(y, maxY) + 'px';
+            });
+            svg.addEventListener('mouseout', (e) => {
+                const labelEl = e.target.closest ? e.target.closest('.flow-label') : null;
+                if (labelEl) {
+                    flowTooltip.classList.add('hidden');
+                }
+            });
+        }
+    }
+
+    window.loadChart = function loadChart() {
+        fetchSankeyData()
+            .then(data => {
+                console.log('Sankey data:', data);
+                lastSankeyData = data;
+                // 更新计数
+                const countEl = document.getElementById('sankey-count');
+                if (countEl) {
+                    countEl.textContent = `节点: ${(data.nodes || []).length} | 流: ${(data.links || []).length}`;
+                }
+                // 更新调试面板
+                const debugEl = document.getElementById('sankey-debug');
+                if (debugEl) {
+                    const nodeList = (data.nodes || []).map(n => `  [${n.nodeType}] depth=${n.depth} ${n.name} (qty=${n.quantity})`).join('\n');
+                    const linkList = (data.links || []).map(l => `  ${l.source} → ${l.target} (val=${l.value})`).join('\n');
+                    debugEl.textContent = `节点 (${(data.nodes || []).length}):\n${nodeList || '  (无)'}\n\n流 (${(data.links || []).length}):\n${linkList || '  (无)'}`;
+                }
+                if (!data.nodes || data.nodes.length === 0) {
+                    console.warn('No sankey nodes returned');
+                }
+                renderChart(data);
+            })
+            .catch(err => {
+                console.error('Failed to load sankey data:', err);
+                const chartDom = document.getElementById('sankey-chart');
+                if (chartDom) {
+                    chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500">加载图表失败，请刷新页面重试</div>';
+                }
+            });
+    }
+
+    // ========== 节点操作菜单 ==========
+    function showNodeMenu(nodeData, event) {
+        hideAllMenus();
+        const menu = document.getElementById('node-context-menu');
+        menu.classList.remove('hidden');
+
+        // 绑定当前节点数据
+        menu.dataset.nodeId = nodeData.id;
+        menu.dataset.nodeName = nodeData.name;
+        menu.dataset.nodeQty = nodeData.quantity;
+        menu.dataset.nodeType = nodeData.nodeType;
+        menu.dataset.testItemId = nodeData.testItemId || '';
+
+        // 控制"创建异常样品组"按钮显示（子类节点和异常分类节点）
+        const createGroupBtn = document.getElementById('menu-create-group');
+        if (createGroupBtn) {
+            if (nodeData.nodeType === 'subcategory' || nodeData.nodeType === 'abnormal_category') {
+                createGroupBtn.classList.remove('hidden');
+            } else {
+                createGroupBtn.classList.add('hidden');
+            }
+        }
+
+        // 控制"创建异常分类"按钮显示（仅失败节点）
+        const createAbnormalCategoryBtn = document.getElementById('menu-create-abnormal-category');
+        if (createAbnormalCategoryBtn) {
+            if (nodeData.nodeType === 'fail') {
+                createAbnormalCategoryBtn.classList.remove('hidden');
+            } else {
+                createAbnormalCategoryBtn.classList.add('hidden');
+            }
+        }
+
+        // 调整菜单位置，避免超出窗口边界
+        const menuWidth = menu.offsetWidth;
+        const menuHeight = menu.offsetHeight;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+
+        let left = event.clientX + 10;
+        let top = event.clientY + 10;
+
+        if (left + menuWidth > windowWidth) {
+            left = event.clientX - menuWidth - 10;
+        }
+        if (top + menuHeight > windowHeight) {
+            top = event.clientY - menuHeight - 10;
+        }
+        if (left < 0) left = 10;
+        if (top < 0) top = 10;
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+    }
+
+    function hideAllMenus() {
+        document.getElementById('node-context-menu').classList.add('hidden');
+    }
+    window.hideAllMenus = hideAllMenus;
+
+    // ========== 操作：创建测试 ==========
+    function showCreateTestModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        const nodeQty = menu.dataset.nodeQty;
+        const testItemId = menu.dataset.testItemId;
+        hideAllMenus();
+
+        document.getElementById('create-test-source').textContent = nodeName;
+        document.getElementById('create-test-qty').max = nodeQty;
+        document.getElementById('create-test-qty').value = nodeQty;
+        document.getElementById('create-test-source-id').value = nodeId;
+        document.getElementById('create-test-source-test-id').value = testItemId;
+        document.getElementById('modal-create-test').classList.remove('hidden');
+    }
+
+    // ========== 操作：拆分子类 ==========
+    function showSplitModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        const nodeQty = menu.dataset.nodeQty;
+        hideAllMenus();
+
+        document.getElementById('split-source').textContent = nodeName;
+        document.getElementById('split-source-id').value = nodeId;
+        document.getElementById('split-total').textContent = nodeQty;
+        document.getElementById('modal-split').classList.remove('hidden');
+        renderSplitRows();
+    }
+
+    function renderSplitRows() {
+        const container = document.getElementById('split-rows');
+        const rows = container.querySelectorAll('.split-row');
+        if (rows.length === 0) {
+            addSplitRow();
+        }
+    }
+
+    function addSplitRow() {
+        const container = document.getElementById('split-rows');
+        const div = document.createElement('div');
+        div.className = 'split-row flex gap-2 mb-2';
+        div.innerHTML = `
+            <input type="text" placeholder="分类原因（如FW问题）" class="split-label flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+            <input type="number" placeholder="数量" min="1" class="split-qty w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+            <button type="button" onclick="this.parentElement.remove()" class="text-slate-400 hover:text-red-400 px-2"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(div);
+    }
+
+    function submitSplit() {
+        const nodeId = document.getElementById('split-source-id').value;
+        const rows = document.querySelectorAll('.split-row');
+        const splits = [];
+        let total = 0;
+        rows.forEach(row => {
+            const label = row.querySelector('.split-label').value.trim();
+            const qty = parseInt(row.querySelector('.split-qty').value) || 0;
+            if (label && qty > 0) {
+                splits.push({label, quantity: qty, node_type: 'subcategory', category_reason: label});
+                total += qty;
+            }
+        });
+
+        const maxQty = parseInt(document.getElementById('split-total').textContent);
+        if (total > maxQty) {
+            alert(`拆分总数(${total})不能超过节点数量(${maxQty})`);
+            return;
+        }
+        if (splits.length === 0) {
+            alert('请至少填写一项拆分');
+            return;
+        }
+
+        fetch(`/testing/sankey/nodes/${nodeId}/split/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({splits, edge_label: '子分类'})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('modal-split');
+                loadChart();
+            } else {
+                alert(data.error || '拆分失败');
+            }
+        });
+    }
+
+    // ========== 操作：创建异常分类节点 ==========
+    function showAbnormalCategoryModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        const nodeQty = menu.dataset.nodeQty;
+        hideAllMenus();
+
+        document.getElementById('abnormal-category-source').textContent = nodeName;
+        document.getElementById('abnormal-category-source-id').value = nodeId;
+        document.getElementById('abnormal-category-total').textContent = nodeQty;
+        document.getElementById('abnormal-category-qty').value = '';
+        document.getElementById('abnormal-category-reason').value = '';
+        document.getElementById('modal-abnormal-category').classList.remove('hidden');
+    }
+
+    function submitAbnormalCategory() {
+        const nodeId = document.getElementById('abnormal-category-source-id').value;
+        const reasonId = document.getElementById('abnormal-category-reason').value;
+        const qty = parseInt(document.getElementById('abnormal-category-qty').value) || 0;
+        const maxQty = parseInt(document.getElementById('abnormal-category-total').textContent);
+
+        if (!reasonId) {
+            alert('请选择异常原因');
+            return;
+        }
+        if (qty <= 0 || qty > maxQty) {
+            alert(`数量无效，必须在 1-${maxQty} 之间`);
+            return;
+        }
+
+        const splits = [{
+            quantity: qty,
+            node_type: 'abnormal_category',
+            reason_id: reasonId
+        }];
+
+        fetch(`/testing/sankey/nodes/${nodeId}/split/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({splits, edge_label: '异常分类'})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('modal-abnormal-category');
+                loadChart();
+            } else {
+                alert(data.error || '创建异常分类失败');
+            }
+        });
+    }
+
+    // ========== 操作：合流（多选模式） ==========
+    function showMergeModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = parseInt(menu.dataset.nodeId);
+        hideAllMenus();
+
+        // 进入多选模式
+        mergeMode.active = true;
+        mergeMode.selectedIds = new Set([nodeId]);
+        mergeMode.nodesData = lastSankeyData ? lastSankeyData.nodes : [];
+        updateMergeToolbar();
+        renderChart(lastSankeyData);
+    }
+
+    function toggleMergeSelection(nodeId) {
+        if (mergeMode.selectedIds.has(nodeId)) {
+            mergeMode.selectedIds.delete(nodeId);
+        } else {
+            mergeMode.selectedIds.add(nodeId);
+        }
+        updateMergeToolbar();
+        renderChart(lastSankeyData);
+    }
+
+    function updateMergeToolbar() {
+        const toolbar = document.getElementById('merge-toolbar');
+        const countEl = document.getElementById('merge-selected-count');
+        if (mergeMode.active) {
+            toolbar.classList.remove('hidden');
+            countEl.textContent = mergeMode.selectedIds.size;
+        } else {
+            toolbar.classList.add('hidden');
+        }
+    }
+
+    function cancelMergeMode() {
+        mergeMode.active = false;
+        mergeMode.selectedIds.clear();
+        updateMergeToolbar();
+        renderChart(lastSankeyData);
+    }
+
+    function confirmMergeSelection() {
+        if (mergeMode.selectedIds.size < 2) {
+            alert('请至少选择两个节点进行合流');
+            return;
+        }
+        // 填充数量输入弹窗
+        const tbody = document.getElementById('merge-qty-rows');
+        tbody.innerHTML = '';
+        mergeMode.nodesData.forEach(node => {
+            if (mergeMode.selectedIds.has(node.id)) {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-700';
+                tr.innerHTML = `
+                    <td class="py-2 px-3 text-sm text-slate-300">${node.name}</td>
+                    <td class="py-2 px-3">
+                        <input type="number" data-node-id="${node.id}" value="${node.quantity}" min="1" max="${node.quantity}"
+                            class="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-sm text-right focus:outline-none focus:border-blue-500">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        });
+        document.getElementById('modal-merge-qty').classList.remove('hidden');
+    }
+
+    function submitMerge() {
+        const targetLabel = document.getElementById('merge-target-label').value.trim();
+        if (!targetLabel) {
+            alert('请输入合流目标节点名称');
+            return;
+        }
+
+        const nodeIds = Array.from(mergeMode.selectedIds);
+        const quantities = {};
+        document.querySelectorAll('#merge-qty-rows input[data-node-id]').forEach(input => {
+            quantities[input.dataset.nodeId] = parseInt(input.value) || 0;
+        });
+
+        fetch(`/testing/sankey/nodes/merge/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({
+                node_ids: nodeIds,
+                target_label: targetLabel,
+                target_node_type: 'merged',
+                edge_label: targetLabel,
+                quantities: quantities,
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('modal-merge-qty');
+                cancelMergeMode();
+                loadChart();
+            } else {
+                alert(data.error || '合流失败');
+            }
+        });
+    }
+
+    // ========== 操作：删除节点 ==========
+    function deleteNode() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        hideAllMenus();
+
+        if (!confirm(`确定要删除节点"${nodeName}"吗？\n将级联删除其所有子节点和关联的流。`)) {
+            return;
+        }
+
+        fetch(`/testing/sankey/nodes/${nodeId}/delete/`, {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken')},
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadChart();
+            } else {
+                alert(data.error || '删除失败');
+            }
+        });
+    }
+
+    function testSimpleSankey() {
+        renderChart({
+            nodes: [
+                {name: '初始', nodeType: 'initial', depth: 0, quantity: 100},
+                {name: '通过', nodeType: 'pass', depth: 1, quantity: 67},
+                {name: '失败', nodeType: 'fail', depth: 1, quantity: 33}
+            ],
+            links: [
+                {source: '初始', target: '通过', value: 67, name: 'RDT'},
+                {source: '初始', target: '失败', value: 33, name: 'RDT'}
+            ]
+        });
+    }
+
+    function submitCreateTest() {
+        const sourceId = document.getElementById('create-test-source-id').value;
+        const sourceTestId = document.getElementById('create-test-source-test-id').value;
+        const qty = parseInt(document.getElementById('create-test-qty').value) || 0;
+        const content = document.getElementById('create-test-content').value;
+        const maxQty = parseInt(document.getElementById('create-test-qty').max);
+
+        if (qty <= 0 || qty > maxQty) {
+            alert('数量无效');
+            return;
+        }
+
+        // 从 lastSankeyData 找到源节点，推导 branch_type
+        const sourceNode = (lastSankeyData?.nodes || []).find(n => String(n.id) === sourceId);
+        let branchType = 'initial';
+        if (sourceNode) {
+            if (sourceNode.nodeType === 'pass') branchType = 'passed';
+            else if (sourceNode.nodeType === 'fail') branchType = 'failed';
+        }
+
+        const params = new URLSearchParams({
+            fae_task: String(faeTaskId),
+            total_samples: String(qty),
+            test_content: content,
+            branch_type: branchType,
+            sankey_node: sourceId,
+        });
+        if (sourceTestId) {
+            params.set('source_test', sourceTestId);
+        } else {
+            // 未关联测试项的节点，额外传递 source_sankey_node_id 用于建边
+            params.set('source_sankey_node_id', sourceId);
+        }
+        window.parent.location.href = `/testing/create/?${params.toString()}`;
+    }
+
+    // ========== 通用 ==========
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+    function showModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // 延迟初始化，等待 CSS 动画完成
+        setTimeout(() => loadChart(), 300);
+
+        // 点击空白处关闭菜单
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#node-context-menu')) {
+                hideAllMenus();
+            }
+        });
+
+        // resize 时重新渲染
+        window.addEventListener('resize', () => {
+            clearTimeout(window._sankeyResizeTimer);
+            window._sankeyResizeTimer = setTimeout(() => {
+                if (lastSankeyData) renderChart(lastSankeyData);
+            }, 200);
+        });
+    });
+
+    // ==================== 异常样品面板 ====================
+    let abnormalPanelOpen = false;
+    let taskAbnormals = [];
+
+    function toggleAbnormalPanel() {
+        abnormalPanelOpen = !abnormalPanelOpen;
+        const panel = document.getElementById('abnormal-panel');
+        if (abnormalPanelOpen) {
+            panel.classList.remove('translate-x-[calc(100%-40px)]');
+            panel.classList.add('translate-x-0');
+            loadAbnormals();
+        } else {
+            panel.classList.add('translate-x-[calc(100%-40px)]');
+            panel.classList.remove('translate-x-0');
+        }
+    }
+
+    async function loadAbnormals() {
+        try {
+            const res = await fetch(`/testing/sankey/abnormals/{{ fae_task.id }}/`);
+            const data = await res.json();
+            taskAbnormals = data.abnormals || [];
+            renderAbnormalList();
+        } catch (e) {
+            console.error('加载异常样品失败', e);
+        }
+    }
+
+    function renderAbnormalList() {
+        const list = document.getElementById('abnormal-list');
+        const count = document.getElementById('abnormal-count');
+        count.textContent = taskAbnormals.length;
+        if (!taskAbnormals.length) {
+            list.innerHTML = '<p class="text-xs text-slate-500 text-center py-4">暂无关联异常样品</p>';
+            return;
+        }
+        list.innerHTML = taskAbnormals.map(a => `
+            <div class="abnormal-item p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors" data-id="${a.id}" data-node-ids="${(a.node_ids || []).join(',')}">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-yellow-400">${a.sample_number}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">${a.status_display}</span>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-1">关联节点: ${(a.node_ids || []).length} 个</div>
+            </div>
+        `).join('');
+        list.querySelectorAll('.abnormal-item').forEach(el => {
+            el.addEventListener('click', () => highlightAbnormalPath(el));
+        });
+    }
+
+    // 点击异常样品 → 高亮单一路径（从关联节点向上追溯）
+    function highlightAbnormalPath(el) {
+        const nodeIdsStr = el.dataset.nodeIds;
+        console.log('[highlightAbnormalPath] nodeIdsStr=', nodeIdsStr);
+        if (!nodeIdsStr) return;
+        const nodeIds = nodeIdsStr.split(',').filter(Boolean);
+        console.log('[highlightAbnormalPath] nodeIds=', nodeIds);
+        if (!nodeIds.length) return;
+        selectedNodes.clear();
+        highlightSinglePath(nodeIds);
+    }
+
+    // 从异常样品关联的节点中，计算完整路径并高亮
+    // 逻辑：
+    // 1) 绑定节点之间路径全部高亮（按 depth 排序后，每对相邻节点向上追溯连接）
+    // 2) 最上游继续向上：若上游有合流节点(merged)则只高亮到该合流节点；否则一路高亮到初始节点
+    // 3) 最下游继续向下：若下游有子类/异常分类节点(subcategory/abnormal_category)则只高亮到其父节点；否则一路高亮到末端
+    function highlightSinglePath(boundNodeIds) {
+        if (!lastSankeyData) {
+            console.warn('[highlightSinglePath] lastSankeyData is null');
+            return;
+        }
+        if (typeof clearNodeHighlight !== 'function') {
+            console.warn('[highlightSinglePath] clearNodeHighlight not available');
+        } else {
+            clearNodeHighlight();
+        }
+        const { nodes, links } = lastSankeyData;
+        const boundSet = new Set(boundNodeIds.map(String));
+        const nodeMap = new Map(nodes.map(n => [String(n.id), n]));
+
+        const pathNodeIds = new Set(boundSet);
+        const pathLinkKeys = new Set();
+
+        // 将绑定节点按 depth 从大到小排序（下游在前，上游在后）
+        const sortedBound = boundNodeIds
+            .map(id => ({id, depth: (nodeMap.get(String(id))?.depth || 0)}))
+            .sort((a, b) => b.depth - a.depth);
+
+        // 1. 高亮绑定节点之间的路径：每个绑定节点向上追溯到下一个绑定节点
+        function traceUpToNextBound(nodeId, stopSet) {
+            const node = nodeMap.get(String(nodeId));
+            if (!node) return;
+            let incoming = links.filter(l => String(l.targetId) === String(nodeId) && (l.quantity || 0) > 0);
+            if (!incoming.length) incoming = links.filter(l => String(l.targetId) === String(nodeId));
+            if (!incoming.length) return;
+            incoming.sort((a, b) => {
+                const aIsBound = stopSet.has(String(a.sourceId));
+                const bIsBound = stopSet.has(String(b.sourceId));
+                if (aIsBound && !bIsBound) return -1;
+                if (!aIsBound && bIsBound) return 1;
+                return (b.quantity || 0) - (a.quantity || 0);
+            });
+            const best = incoming[0];
+            const srcId = String(best.sourceId);
+            pathNodeIds.add(srcId);
+            pathLinkKeys.add(`${best.sourceId}-${best.targetId}`);
+            if (!stopSet.has(srcId)) {
+                traceUpToNextBound(srcId, stopSet);
+            }
+        }
+
+        for (let i = 0; i < sortedBound.length - 1; i++) {
+            const currentId = sortedBound[i].id;
+            const upstreamBounds = new Set(sortedBound.slice(i + 1).map(b => String(b.id)));
+            traceUpToNextBound(currentId, upstreamBounds);
+        }
+
+        // 2. 最上游绑定节点继续向上：
+        //    - 若上游存在合流节点(nodeType === 'merged')，只高亮到该合流节点（取 quantity 最大）
+        //    - 若不存在合流节点，沿主路径(quantity最大)继续向上追溯到初始节点
+        const minBoundId = sortedBound[sortedBound.length - 1]?.id;
+        function traceUpSingleLine(nodeId) {
+            const node = nodeMap.get(String(nodeId));
+            if (!node) return;
+            let incoming = links.filter(l => String(l.targetId) === String(nodeId) && (l.quantity || 0) > 0);
+            if (!incoming.length) incoming = links.filter(l => String(l.targetId) === String(nodeId));
+            if (incoming.length === 0) return;
+
+            // 检查入边中是否有来自合流节点的
+            const mergedIncoming = incoming.filter(l => {
+                const srcNode = nodeMap.get(String(l.sourceId));
+                return srcNode && srcNode.nodeType === 'merged';
+            });
+
+            if (mergedIncoming.length > 0) {
+                // 有合流节点：选择 quantity 最大的合流节点，添加并停止
+                mergedIncoming.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+                const best = mergedIncoming[0];
+                const srcId = String(best.sourceId);
+                pathNodeIds.add(srcId);
+                pathLinkKeys.add(`${best.sourceId}-${best.targetId}`);
+                return;
+            }
+
+            // 没有合流节点：继续沿主路径向上追溯
+            incoming.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+            const best = incoming[0];
+            const srcId = String(best.sourceId);
+            pathNodeIds.add(srcId);
+            pathLinkKeys.add(`${best.sourceId}-${best.targetId}`);
+            traceUpSingleLine(srcId);
+        }
+        if (minBoundId) {
+            traceUpSingleLine(minBoundId);
+        }
+
+        // 3. 最下游绑定节点继续向下：
+        //    - 若下游遇到子类节点(nodeType === 'subcategory')，不进入子类节点，只高亮到其父节点（即当前节点）
+        //    - 若没有子类节点，沿主路径(quantity最大)一路高亮到末端
+        const maxBoundId = sortedBound[0]?.id;
+        function traceDown(nodeId) {
+            let out = links.filter(l => String(l.sourceId) === String(nodeId) && (l.quantity || 0) > 0);
+            if (!out.length) out = links.filter(l => String(l.sourceId) === String(nodeId));
+            if (!out.length) return;
+            out.sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+            const best = out[0];
+            const tgtId = String(best.targetId);
+            const tgtNode = nodeMap.get(tgtId);
+            // 若目标节点是子类/异常分类节点，不添加该节点，停止追溯（只高亮到其父节点）
+            if (tgtNode && (tgtNode.nodeType === 'subcategory' || tgtNode.nodeType === 'abnormal_category')) {
+                return;
+            }
+            pathNodeIds.add(tgtId);
+            pathLinkKeys.add(`${best.sourceId}-${best.targetId}`);
+            traceDown(tgtId);
+        }
+        if (maxBoundId) {
+            traceDown(maxBoundId);
+        }
+
+        console.log('[highlightSinglePath] bound=', [...boundSet], 'pathNodeIds=', [...pathNodeIds], 'pathLinkKeys=', [...pathLinkKeys]);
+
+        // 应用样式：高亮路径上的节点和流，其他大幅淡化
+        document.querySelectorAll('.sankey-node').forEach(el => {
+            const nid = el.dataset.nodeId;
+            const rect = el.querySelector('rect');
+            if (pathNodeIds.has(nid)) {
+                el.style.opacity = '1';
+                el.style.filter = 'none';
+                if (rect) {
+                    rect.setAttribute('stroke', '#fbbf24');
+                    rect.setAttribute('stroke-width', '3');
+                }
+            } else {
+                el.style.opacity = '0.12';
+                el.style.filter = 'grayscale(0.9)';
+                if (rect) {
+                    rect.setAttribute('stroke', '#1e293b');
+                    rect.setAttribute('stroke-width', '1');
+                }
+            }
+        });
+        document.querySelectorAll('.flow-path').forEach(el => {
+            const sid = el.dataset.sourceId;
+            const tid = el.dataset.targetId;
+            const key = `${sid}-${tid}`;
+            if (pathLinkKeys.has(key)) {
+                el.style.opacity = '1';
+                el.setAttribute('stroke', 'rgba(255,255,255,0.4)');
+                el.setAttribute('stroke-width', '1');
+            } else {
+                el.style.opacity = '0.06';
+                el.setAttribute('stroke', 'none');
+            }
+        });
+        document.querySelectorAll('.flow-label').forEach(el => {
+            const sid = el.dataset.sourceId;
+            const tid = el.dataset.targetId;
+            const key = `${sid}-${tid}`;
+            if (pathLinkKeys.has(key)) {
+                el.style.opacity = '1';
+            } else {
+                el.style.opacity = '0.06';
+            }
+        });
+
+        selectedNodeId = sortedBound[0]?.id || null;
+    }
+
+    // ==================== 绑定异常样品弹窗 ====================
+    function openAddAbnormalModal(nodeId, nodeLabel) {
+        document.getElementById('abnormal-source').textContent = nodeLabel;
+        document.getElementById('abnormal-source-id').value = nodeId;
+        document.getElementById('abnormal-create-link').href = `/abnormal/create/?sankey_node=${nodeId}&fae_task_id={{ fae_task.id }}`;
+        document.getElementById('abnormal-existing-list').innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
+        showModal('modal-add-abnormal');
+        loadExistingAbnormalsGrouped(nodeId);
+    }
+
+    async function loadExistingAbnormalsGrouped(nodeId) {
+        const container = document.getElementById('abnormal-existing-list');
+        container.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
+        
+        try {
+            // 1. 必须有桑基图数据才能确定父节点和兄弟节点
+            if (!lastSankeyData) {
+                container.innerHTML = '<p class="text-xs text-red-400 text-center py-2">桑基图数据未加载</p>';
+                return;
+            }
+            
+            const links = lastSankeyData.links || [];
+            const parentLinks = links.filter(l => String(l.targetId) === String(nodeId));
+            const parentIds = parentLinks.map(l => String(l.sourceId));
+            const hasParent = parentIds.length > 0;
+            
+            // 2. 获取任务下所有节点与异常样品的绑定关系
+            const res = await fetch(`/testing/sankey/abnormals/{{ fae_task.id }}/`);
+            if (!res.ok) {
+                const text = await res.text();
+                console.error('API 错误:', res.status, text.substring(0, 200));
+                container.innerHTML = `<p class="text-xs text-red-400 text-center py-2">加载失败 (${res.status})</p>`;
+                return;
+            }
+            const data = await res.json();
+            const taskAbnormals = data.abnormals || [];
+            
+            // 3. 当前节点已绑定的样品默认勾选
+            const currentBoundIds = new Set();
+            taskAbnormals.forEach(a => {
+                if (a.node_ids && a.node_ids.some(id => String(id) === String(nodeId))) {
+                    currentBoundIds.add(String(a.id));
+                }
+            });
+            
+            let availableAbnormals = [];
+            
+            if (hasParent) {
+                // 有父节点：只能从父节点绑定的样品中选择，并排除兄弟节点已绑定的
+                const parentBoundIds = new Set();
+                taskAbnormals.forEach(a => {
+                    if (a.node_ids && a.node_ids.some(id => parentIds.includes(String(id)))) {
+                        parentBoundIds.add(String(a.id));
+                    }
+                });
+                if (!parentBoundIds.size) {
+                    container.innerHTML = '<p class="text-xs text-red-400 text-center py-2">父节点未绑定异常样品，无法绑定</p>';
+                    return;
+                }
+                
+                // 兄弟节点 = 同一父节点下的其他子节点
+                const siblingIds = new Set();
+                parentIds.forEach(pid => {
+                    links.filter(l => String(l.sourceId) === pid).forEach(l => {
+                        const tid = String(l.targetId);
+                        if (tid !== String(nodeId)) siblingIds.add(tid);
+                    });
+                });
+                
+                // 被兄弟节点绑定的样品不展示
+                const siblingBoundIds = new Set();
+                taskAbnormals.forEach(a => {
+                    if (a.node_ids && a.node_ids.some(id => siblingIds.has(String(id)))) {
+                        siblingBoundIds.add(String(a.id));
+                    }
+                });
+                
+                availableAbnormals = taskAbnormals.filter(a => {
+                    const id = String(a.id);
+                    return parentBoundIds.has(id) && !siblingBoundIds.has(id);
+                });
+                
+                if (!availableAbnormals.length) {
+                    container.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">父节点绑定的异常样品已被兄弟节点全部分配</p>';
+                    return;
+                }
+            } else {
+                // 无父节点（根节点）：可以绑定该任务下所有可用异常样品
+                const listRes = await fetch(`/abnormal/api/list/?fae_task_id={{ fae_task.id }}`);
+                if (!listRes.ok) {
+                    const text = await listRes.text();
+                    console.error('API 错误:', listRes.status, text.substring(0, 200));
+                    container.innerHTML = `<p class="text-xs text-red-400 text-center py-2">加载失败 (${listRes.status})</p>`;
+                    return;
+                }
+                const listData = await listRes.json();
+                availableAbnormals = listData.abnormals || listData.results || listData || [];
+                if (!availableAbnormals.length) {
+                    container.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">暂无可用异常样品</p>';
+                    return;
+                }
+            }
+            
+            // 4. 按组归类并渲染
+            const groups = {};
+            const ungrouped = [];
+            for (const s of availableAbnormals) {
+                if (s.group_id) {
+                    const key = s.group_id;
+                    if (!groups[key]) groups[key] = {id: s.group_id, number: s.group_number, samples: []};
+                    groups[key].samples.push(s);
+                } else {
+                    ungrouped.push(s);
+                }
+            }
+            
+            let html = '';
+            // 有组的样品
+            for (const g of Object.values(groups)) {
+                const allChecked = g.samples.length > 0 && g.samples.every(s => currentBoundIds.has(String(s.id)));
+                html += `
+                    <div class="group-card mb-2 border border-slate-700/50 rounded-lg overflow-hidden">
+                        <div class="group-header flex items-center justify-between px-3 py-2 bg-slate-800/80 cursor-pointer hover:bg-slate-800 transition-colors" onclick="toggleGroup(this)">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" class="group-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" data-group-id="${g.id}" onchange="toggleGroupCheckbox(this, '${g.id}')" onclick="event.stopPropagation()" ${allChecked ? 'checked' : ''}>
+                                <span class="text-xs font-medium text-yellow-400">${g.number}</span>
+                                <span class="text-[10px] text-slate-500">${g.samples.length}个样品</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-[10px] text-slate-500 transition-transform group-arrow"></i>
+                        </div>
+                        <div class="group-body hidden px-3 py-2 space-y-1 bg-slate-900/30">
+                            ${g.samples.map(s => {
+                                const checked = currentBoundIds.has(String(s.id)) ? 'checked' : '';
+                                return `
+                                <label class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
+                                    <input type="checkbox" name="existing_abnormal" value="${s.id}" data-group-id="${g.id}" class="sample-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" onchange="updateGroupCheckbox('${g.id}')" ${checked}>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs text-slate-300 truncate">${s.sample_number || s.id}</div>
+                                        <div class="text-[10px] text-slate-500">${s.status_display || s.status || ''}</div>
+                                    </div>
+                                </label>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            // 未分组样品
+            if (ungrouped.length) {
+                const allChecked = ungrouped.length > 0 && ungrouped.every(s => currentBoundIds.has(String(s.id)));
+                html += `
+                    <div class="group-card mb-2 border border-slate-700/50 rounded-lg overflow-hidden">
+                        <div class="group-header flex items-center justify-between px-3 py-2 bg-slate-800/80 cursor-pointer hover:bg-slate-800 transition-colors" onclick="toggleGroup(this)">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" class="group-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" data-group-id="ungrouped" onchange="toggleGroupCheckbox(this, 'ungrouped')" onclick="event.stopPropagation()" ${allChecked ? 'checked' : ''}>
+                                <span class="text-xs font-medium text-slate-400">未分组样品</span>
+                                <span class="text-[10px] text-slate-500">${ungrouped.length}个</span>
+                            </div>
+                            <i class="fas fa-chevron-down text-[10px] text-slate-500 transition-transform group-arrow"></i>
+                        </div>
+                        <div class="group-body hidden px-3 py-2 space-y-1 bg-slate-900/30">
+                            ${ungrouped.map(s => {
+                                const checked = currentBoundIds.has(String(s.id)) ? 'checked' : '';
+                                return `
+                                <label class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
+                                    <input type="checkbox" name="existing_abnormal" value="${s.id}" data-group-id="ungrouped" class="sample-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" onchange="updateGroupCheckbox('ungrouped')" ${checked}>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs text-slate-300 truncate">${s.sample_number || s.id}</div>
+                                        <div class="text-[10px] text-slate-500">${s.status_display || s.status || ''}</div>
+                                    </div>
+                                </label>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        } catch (e) {
+            console.error('加载异常样品列表失败:', e);
+            container.innerHTML = '<p class="text-xs text-red-400 text-center py-2">加载失败</p>';
+        }
+    }
+
+    function toggleGroup(header) {
+        const body = header.nextElementSibling;
+        const arrow = header.querySelector('.group-arrow');
+        body.classList.toggle('hidden');
+        arrow.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
+    }
+
+    function toggleGroupCheckbox(checkbox, groupId) {
+        const card = checkbox.closest('.group-card');
+        card.querySelectorAll('.sample-checkbox').forEach(cb => cb.checked = checkbox.checked);
+    }
+
+    function updateGroupCheckbox(groupId) {
+        const card = document.querySelector(`.group-card input[data-group-id="${groupId}"]`)?.closest('.group-card');
+        if (!card) return;
+        const groupCheck = card.querySelector('.group-checkbox');
+        const sampleChecks = card.querySelectorAll('.sample-checkbox');
+        groupCheck.checked = sampleChecks.length > 0 && Array.from(sampleChecks).every(cb => cb.checked);
+    }
+
+    async function submitAttachAbnormals() {
+        const nodeId = document.getElementById('abnormal-source-id').value;
+        const checkedSamples = document.querySelectorAll('input[name="existing_abnormal"]:checked');
+        const ids = Array.from(checkedSamples).map(c => c.value);
+        
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const res = await fetch(`/testing/sankey/nodes/${nodeId}/abnormal/attach/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify({abnormal_ids: ids})
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.error || '绑定失败');
+            return;
+        }
+        
+        closeModal('modal-add-abnormal');
+        if (window.loadChart) window.loadChart();
+        loadAbnormals();
+    }
+
+    // 从右键菜单打开绑定异常样品弹窗
+    function showAddAbnormalModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        hideAllMenus();
+        openAddAbnormalModal(nodeId, nodeName);
+    }
+
+    // ==================== 创建异常样品组 ====================
+    function showCreateGroupModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        hideAllMenus();
+
+        // 从 lastSankeyData 获取节点数量
+        const node = lastSankeyData?.nodes?.find(n => String(n.id) === String(nodeId));
+        const quantity = node?.quantity || 1;
+        
+        const params = new URLSearchParams({
+            sankey_node: String(nodeId),
+            total_count: String(quantity),
+        });
+        window.open(`/abnormal/groups/create/?${params.toString()}`, '_blank');
+    }
+</script>
+
+<div class="space-y-4 animate-slide-in p-4">
+    <!-- 图例 -->
+    <div class="flex gap-4 text-xs text-slate-400">
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-slate-500"></span>初始</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-green-500"></span>通过</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-red-500"></span>失败</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-orange-500"></span>子分类</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-red-600"></span>异常分类</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-purple-500"></span>合流</span>
+    </div>
+
+    <!-- 桑基图 + 异常样品面板 -->
+    <div class="flex gap-4">
+        <!-- 桑基图 -->
+        <div class="flex-1 rounded-xl border border-slate-700/50 relative" style="background: #0f172a;">
+            <div id="sankey-chart" style="width: 100%; height: 600px; background: #0f172a; position: relative;"></div>
+            <!-- 调试面板 -->
+            <details class="mt-2 text-xs">
+                <summary class="text-slate-500 cursor-pointer hover:text-slate-300 select-none">调试信息</summary>
+                <div id="sankey-debug" class="mt-2 p-3 bg-slate-900/50 rounded-lg text-slate-400 font-mono text-xs whitespace-pre-wrap max-h-48 overflow-y-auto"></div>
+            </details>
+
+            <!-- 节点右键菜单 -->
+            <div id="node-context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-xl py-2 min-w-[180px]">
+                <div class="px-3 py-1.5 text-xs text-slate-500 border-b border-slate-800 mb-1">节点操作</div>
+                <button onclick="showCreateTestModal()" class="w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-vial mr-2"></i>创建测试
+                </button>
+                <button onclick="showAddAbnormalModal()" class="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>绑定异常样品
+                </button>
+                <button id="menu-create-group" onclick="showCreateGroupModal()" class="hidden w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-object-group mr-2"></i>创建异常样品组
+                </button>
+                <button onclick="showSplitModal()" class="w-full text-left px-4 py-2 text-sm text-orange-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-code-branch mr-2"></i>拆分子类
+                </button>
+                <button id="menu-create-abnormal-category" onclick="showAbnormalCategoryModal()" class="hidden w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-exclamation-circle mr-2"></i>创建异常分类
+                </button>
+                <button onclick="showMergeModal()" class="w-full text-left px-4 py-2 text-sm text-purple-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-compress-alt mr-2"></i>合流...
+                </button>
+                <div class="border-t border-slate-800 my-1"></div>
+                <button onclick="deleteNode()" class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-trash-alt mr-2"></i>删除节点
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ========== 弹窗：创建测试 ========== -->
+<div id="modal-create-test" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">创建测试</h3>
+        <p class="text-sm text-slate-400 mb-4">来源节点：<span id="create-test-source" class="text-white"></span></p>
+        <input type="hidden" id="create-test-source-id">
+        <input type="hidden" id="create-test-source-test-id">
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">测试内容</label>
+                <select id="create-test-content" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                    {% for value, label in test_content_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">样品数量</label>
+                <input type="number" id="create-test-qty" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="submitCreateTest()" class="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-all">创建</button>
+            <button onclick="closeModal('modal-create-test')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 弹窗：绑定异常样品 ========== -->
+<div id="modal-add-abnormal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-lg w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">绑定异常样品</h3>
+        <p class="text-sm text-slate-400 mb-4">来源节点：<span id="abnormal-source" class="text-white"></span></p>
+        <input type="hidden" id="abnormal-source-id">
+        <div class="space-y-3 mb-6">
+            <a id="abnormal-create-link" href="#" target="_blank" class="block w-full px-4 py-3 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 text-sm text-center transition-colors">
+                <i class="fas fa-plus mr-2"></i>新建异常样品
+            </a>
+            <div class="border-t border-slate-800 pt-3">
+                <p class="text-xs text-slate-500 mb-2">从已有异常样品中选择（按组折叠）：</p>
+                <div id="abnormal-existing-list" class="max-h-60 overflow-y-auto">
+                    <p class="text-xs text-slate-500 text-center py-2">加载中...</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="submitAttachAbnormals()" class="flex-1 px-4 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm transition-all">确认绑定</button>
+            <button onclick="closeModal('modal-add-abnormal')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 弹窗：拆分子类 ========== -->
+<div id="modal-split" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-lg w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-2">拆分子类</h3>
+        <p class="text-sm text-slate-400 mb-4">来源节点：<span id="split-source" class="text-white"></span>（共 <span id="split-total" class="text-white"></span> 片）</p>
+        <input type="hidden" id="split-source-id">
+        <div id="split-rows" class="space-y-2 mb-4 max-h-60 overflow-y-auto">
+            <!-- 动态添加行 -->
+        </div>
+        <button onclick="addSplitRow()" class="mb-4 text-sm text-blue-400 hover:text-blue-300">
+            <i class="fas fa-plus mr-1"></i>添加分类
+        </button>
+        <div class="flex gap-3">
+            <button onclick="submitSplit()" class="flex-1 px-4 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm transition-all">确认拆分</button>
+            <button onclick="closeModal('modal-split')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 弹窗：创建异常分类 ========== -->
+<div id="modal-abnormal-category" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-2">创建异常分类</h3>
+        <p class="text-sm text-slate-400 mb-4">来源节点：<span id="abnormal-category-source" class="text-white"></span>（共 <span id="abnormal-category-total" class="text-white"></span> 片）</p>
+        <input type="hidden" id="abnormal-category-source-id">
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">异常原因 <span class="text-red-500">*</span></label>
+                <select id="abnormal-category-reason" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">请选择异常原因</option>
+                    {% for reason in abnormal_reasons %}
+                    <option value="{{ reason.id }}">{{ reason.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">数量 <span class="text-red-500">*</span></label>
+                <input type="number" id="abnormal-category-qty" min="1" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="submitAbnormalCategory()" class="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition-all">创建</button>
+            <button onclick="closeModal('modal-abnormal-category')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 合流多选浮动工具栏 -->
+<div id="merge-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl px-6 py-3 flex items-center gap-4">
+    <span class="text-sm text-slate-300">已选 <span id="merge-selected-count" class="text-white font-bold">0</span> 个节点</span>
+    <button onclick="confirmMergeSelection()" class="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm transition-all">确认合流</button>
+    <button onclick="cancelMergeMode()" class="px-4 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+</div>
+
+<!-- ========== 弹窗：合流数量输入 ========== -->
+<div id="modal-merge-qty" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-lg w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">合流设置</h3>
+        <div class="space-y-4 mb-4">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">目标节点名称</label>
+                <input type="text" id="merge-target-label" placeholder="如：重新RDT测试" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="max-h-60 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-slate-400 border-b border-slate-700">
+                            <th class="text-left py-2 px-3">节点</th>
+                            <th class="text-right py-2 px-3">合流数量</th>
+                        </tr>
+                    </thead>
+                    <tbody id="merge-qty-rows"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="submitMerge()" class="flex-1 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm transition-all">确认合流</button>
+            <button onclick="closeModal('modal-merge-qty')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 右侧异常样品列表面板 -->
+<div id="abnormal-panel" class="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex items-start transition-transform duration-300 translate-x-[calc(100%-40px)]">
+    <button id="abnormal-panel-toggle" onclick="toggleAbnormalPanel()" class="bg-yellow-900/80 border border-yellow-700/50 text-yellow-400 px-2 py-3 rounded-l-lg backdrop-blur-sm hover:bg-yellow-900 transition-colors writing-mode-vertical text-xs font-medium">
+        异常样品
+    </button>
+    <div class="w-72 bg-slate-900/95 border-l border-y border-slate-700/50 rounded-l-xl backdrop-blur-sm max-h-[70vh] overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-yellow-400">异常样品关联</h3>
+            <span id="abnormal-count" class="text-xs bg-yellow-900/50 text-yellow-400 px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="abnormal-list" class="flex-1 overflow-y-auto p-3 space-y-2">
+            <p class="text-xs text-slate-500 text-center py-4">暂无关联异常样品</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .writing-mode-vertical { writing-mode: vertical-rl; text-orientation: mixed; }
+</style>
+
+<!-- 流参数悬浮提示 -->
+<div id="flow-param-tooltip" class="hidden fixed z-50 pointer-events-none">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-3 text-sm min-w-[180px]">
+        <div class="text-slate-300 text-xs font-medium mb-2 border-b border-slate-700 pb-1 flex items-center gap-1">
+            <i class="fas fa-sliders-h text-blue-400"></i>测试参数
+        </div>
+        <div id="flow-param-tooltip-body" class="space-y-1"></div>
+    </div>
+</div>
+
+{% csrf_token %}
+</body>
+</html>

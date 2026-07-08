@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ group.group_number }} - 异常样品组详情 - SSD FAE业务管理系统{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 页面标题和操作栏 -->
+    <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <a href="{% url 'abnormal:group_list' %}" class="text-slate-400 hover:text-white transition-colors">
+                <i class="fas fa-arrow-left text-lg"></i>
+            </a>
+            <div>
+                <h2 class="text-xl font-semibold text-white">异常样品组详情</h2>
+                <p class="text-sm text-slate-500 mono">{{ group.group_number }}</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            {% with fae_task=group.test_item.fae_tasks.first %}
+            {% if fae_task %}
+            <a href="{% url 'fae:task_detail' fae_task.pk %}" class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-blue-500/30">
+                <i class="fas fa-tasks"></i>
+                <span>返回FAE任务</span>
+            </a>
+            {% endif %}
+            {% endwith %}
+            <a href="{% url 'abnormal:group_update' group.pk %}" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-slate-700">
+                <i class="fas fa-edit"></i>
+                <span>编辑</span>
+            </a>
+            <a href="{% url 'abnormal:group_delete' group.pk %}" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg flex items-center gap-2 transition-all border border-red-500/30">
+                <i class="fas fa-trash-alt"></i>
+                <span>删除</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 基本信息卡片 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">基本信息</h3>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">组编号</p>
+                <p class="text-sm text-white mono">{{ group.group_number }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">客户</p>
+                <p class="text-sm text-white">{{ group.customer.customer_code }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">当前状态</p>
+                <p class="text-sm">
+                    {% if group.status == 'pending_analysis' %}
+                    <span class="px-2 py-1 rounded text-xs status-pending font-medium">待分析</span>
+                    {% elif group.status == 'retesting' %}
+                    <span class="px-2 py-1 rounded text-xs status-processing font-medium">复测中</span>
+                    {% elif group.status == 'resolved' %}
+                    <span class="px-2 py-1 rounded text-xs status-resolved font-medium">已解决</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">优先级</p>
+                <p class="text-sm">
+                    {% if group.priority == 'urgent' %}
+                    <span class="px-2 py-1 rounded text-xs status-urgent font-medium">紧急</span>
+                    {% elif group.priority == 'high' %}
+                    <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(249, 115, 22, 0.2); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);">高</span>
+                    {% else %}
+                    <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">一般</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">样品数量</p>
+                <p class="text-sm text-white">{{ group.total_count }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">负责人</p>
+                <p class="text-sm text-slate-300">{% if group.assignee %}{{ group.assignee.get_full_name|default:group.assignee.username }}{% else %}-{% endif %}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">创建时间</p>
+                <p class="text-sm text-slate-500">{{ group.created_at|date:'Y-m-d H:i' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">所属项目</p>
+                <p class="text-sm text-slate-300">{{ group.project.project_name|default:'-' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">样品方案</p>
+                <p class="text-sm text-slate-300">{{ group.solution.solution_number|default:'-' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">所属测试</p>
+                <p class="text-sm text-slate-300">
+                    {% if group.test_item %}
+                    <a href="{% url 'testing:test_detail' group.test_item.pk %}" class="text-blue-400 hover:text-blue-300">{{ group.test_item.test_number }} - {{ group.test_item.get_test_content_display }}</a>
+                    {% else %}-{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 异常概述 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">异常概述</h3>
+        </div>
+        <div class="p-6">
+            <div class="text-sm text-slate-300">{{ group.abnormal_summary|default:'暂无概述' }}</div>
+        </div>
+    </div>
+
+    <!-- 异常描述 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">异常描述</h3>
+        </div>
+        <div class="p-6">
+            <div class="text-sm text-slate-300 rich-text-content">{{ group.abnormal_description|safe|default:'暂无描述' }}</div>
+        </div>
+    </div>
+
+    <!-- 批量编辑 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white">批量编辑样品</h3>
+        </div>
+        <div class="p-4">
+            <form method="post" action="{% url 'abnormal:group_bulk_edit' group.pk %}" id="bulkEditForm">
+                {% csrf_token %}
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button type="submit" name="bulk_action" value="sync_all" class="px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm transition-all flex items-center gap-1">
+                        <i class="fas fa-sync text-xs"></i>同步全部到组
+                    </button>
+                    <button type="submit" name="bulk_action" value="sync_unedited" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all flex items-center gap-1">
+                        <i class="fas fa-sync-alt text-xs"></i>仅同步未编辑项
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-4 mb-4 p-3 rounded-lg bg-slate-900/30 border border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <select name="new_status" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-slate-500">
+                            <option value="">选择新状态</option>
+                            <option value="pending_analysis">待分析</option>
+                            <option value="retesting">复测中</option>
+                            <option value="resolved">已解决</option>
+                        </select>
+                        <button type="submit" name="bulk_action" value="update_status" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all flex items-center gap-1">
+                            <i class="fas fa-exchange-alt text-xs"></i>更新状态
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select name="new_priority" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-slate-500">
+                            <option value="">选择新优先级</option>
+                            <option value="urgent">紧急</option>
+                            <option value="high">高</option>
+                            <option value="normal">一般</option>
+                        </select>
+                        <button type="submit" name="bulk_action" value="update_priority" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all flex items-center gap-1">
+                            <i class="fas fa-flag text-xs"></i>更新优先级
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select name="new_assignee" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-slate-500">
+                            <option value="">选择新负责人</option>
+                            {% for user in assignee_choices %}
+                            <option value="{{ user.pk }}">{{ user.get_full_name|default:user.username }}</option>
+                            {% endfor %}
+        </select>
+                        <button type="submit" name="bulk_action" value="update_assignee" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all flex items-center gap-1">
+                            <i class="fas fa-user text-xs"></i>更新负责人
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 样品列表 - 桌面端 -->
+                <div class="hidden lg:block overflow-hidden rounded-lg border border-slate-800">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                            <tr>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                                    <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                                </th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">样品编号</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">当前状态</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">优先级</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">负责人</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">所属测试</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 text-sm">
+                            {% for sample in samples %}
+                            <tr class="hover:bg-slate-800/30 transition-colors">
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <input type="checkbox" name="sample_ids" value="{{ sample.pk }}" class="sample-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                                </td>
+                                <td class="px-4 py-3 mono text-red-400 whitespace-nowrap">{{ sample.sample_number }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {% if sample.status == 'pending_analysis' %}
+                                    <span class="px-2 py-1 rounded text-xs status-pending font-medium">待分析</span>
+                                    {% elif sample.status == 'retesting' %}
+                                    <span class="px-2 py-1 rounded text-xs status-processing font-medium">复测中</span>
+                                    {% elif sample.status == 'resolved' %}
+                                    <span class="px-2 py-1 rounded text-xs status-resolved font-medium">已解决</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {% if sample.priority == 'urgent' %}
+                                    <span class="px-2 py-1 rounded text-xs status-urgent font-medium">紧急</span>
+                                    {% elif sample.priority == 'high' %}
+                                    <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(249, 115, 22, 0.2); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3);">高</span>
+                                    {% else %}
+                                    <span class="px-2 py-1 rounded text-xs font-medium" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">一般</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-slate-300 whitespace-nowrap">{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</td>
+                                <td class="px-4 py-3 text-slate-300 whitespace-nowrap">{{ sample.test_item.get_test_content_display|default:'-' }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <a href="{% url 'abnormal:abnormal_update' sample.pk %}" class="text-blue-400 hover:text-blue-300 text-sm">
+                                        <i class="fas fa-edit mr-1"></i>编辑
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                                    <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                                    <p>暂无样品记录</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 样品列表 - 移动端卡片 -->
+                <div class="lg:hidden space-y-3 mt-4">
+                    {% for sample in samples %}
+                    <div class="glass rounded-xl p-4 border border-slate-700/50 flex items-start gap-3">
+                        <input type="checkbox" name="sample_ids" value="{{ sample.pk }}" class="sample-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0 mt-1 flex-shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-white text-sm font-medium mono">{{ sample.sample_number }}</span>
+                                <span class="px-2 py-1 rounded text-xs {% if sample.status == 'pending_analysis' %}bg-yellow-500/20 text-yellow-500 border border-yellow-500/30{% elif sample.status == 'retesting' %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% else %}bg-green-500/20 text-green-400 border border-green-500/30{% endif %}">
+                                    {% if sample.status == 'pending_analysis' %}待分析{% elif sample.status == 'retesting' %}复测中{% else %}已解决{% endif %}
+                                </span>
+                            </div>
+                            <div class="text-xs text-slate-400 mb-1">{{ sample.test_item.get_test_content_display|default:'-' }}</div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-slate-500">{% if sample.assignee %}{{ sample.assignee.get_full_name|default:sample.assignee.username }}{% else %}-{% endif %}</span>
+                                <span class="px-2 py-0.5 rounded text-xs {% if sample.priority == 'urgent' %}bg-red-500/20 text-red-400 border border-red-500/30{% elif sample.priority == 'high' %}bg-orange-500/20 text-orange-400 border border-orange-500/30{% else %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% endif %}">
+                                    {% if sample.priority == 'urgent' %}紧急{% elif sample.priority == 'high' %}高{% else %}一般{% endif %}
+                                </span>
+                            </div>
+                            <div class="mt-2">
+                                <a href="{% url 'abnormal:abnormal_update' sample.pk %}" class="text-blue-400 hover:text-blue-300 text-xs">
+                                    <i class="fas fa-edit mr-1"></i>编辑
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                        <p>暂无样品记录</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.sample-checkbox');
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            });
+        }
+
+        const bulkForm = document.getElementById('bulkEditForm');
+        if (bulkForm) {
+            bulkForm.addEventListener('submit', function(e) {
+                const action = e.submitter ? e.submitter.value : '';
+                if (action === 'update_status' || action === 'update_priority' || action === 'update_assignee') {
+                    const checked = document.querySelectorAll('.sample-checkbox:checked');
+                    if (checked.length === 0) {
+                        e.preventDefault();
+                        alert('请至少选择一个样品');
+                        return false;
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

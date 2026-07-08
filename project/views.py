@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.urls import reverse_lazy
 from django.db import models
-from .models import Project, ActivityTimeline
+from .models import Project
 from .forms import ProjectForm
 
 
@@ -41,7 +41,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
 
 
 class ProjectDetailView(LoginRequiredMixin, DetailView):
-    """项目详情 - 展示关联的所有模块内容 + 时间线"""
+    """项目详情 - 展示关联的所有模块内容"""
     model = Project
     template_name = 'project/project_detail.html'
     context_object_name = 'project'
@@ -69,9 +69,6 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         # 关联数量统计
         context['related_counts'] = project.get_related_counts()
         context['total_items'] = project.get_total_items()
-
-        # 时间线
-        context['activities'] = project.activities.select_related('actor').all()[:100]
 
         # 各模块创建URL（带project参数）
         context['create_urls'] = {

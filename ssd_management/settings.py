@@ -128,6 +128,17 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# 日志文件本地缓存目录（OSS 文件首次查看时下载到此处）
+LOG_CACHE_DIR = BASE_DIR / 'media' / 'cache' / 'logs'
+
+# 阿里云 OSS 配置（手动上传方案）
+ALIBABA_OSS = {
+    'ACCESS_KEY_ID': os.environ.get('ALIBABA_OSS_ACCESS_KEY_ID', ''),
+    'ACCESS_KEY_SECRET': os.environ.get('ALIBABA_OSS_ACCESS_KEY_SECRET', ''),
+    'ENDPOINT': 'oss-cn-shenzhen.aliyuncs.com',    # 华南1(深圳) Endpoint
+    'BUCKET_NAME': 'ssd-logs',
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 

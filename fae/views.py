@@ -546,6 +546,37 @@ class FAETaskDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['comment_form'] = FAETaskCommentForm()
         context['logs'] = self.object.logs.select_related('operator').all()[:10]
+        
+        # 测试项列表
+        tests = list(self.object.test_items.select_related(
+            'customer', 'tracker', 'solution'
+        ).prefetch_related('parameters__parameter', 'abnormal_analyses__reason').order_by('-created_at'))
+        for t in tests:
+            if t.total_samples > 0:
+                t.yield_rate = round(t.passed_samples / t.total_samples * 100, 2)
+            else:
+                t.yield_rate = None
+        context['task_tests'] = tests
+        
+        # 异常样品列表（通过测试项或桑基图节点关联）
+        from abnormal.models import AbnormalSample
+        from collections import defaultdict
+        abnormals = AbnormalSample.objects.filter(
+            models.Q(test_item__fae_tasks=self.object) |
+            models.Q(sankey_nodes__fae_task=self.object)
+        ).select_related('customer', 'assignee', 'group', 'test_item').distinct().order_by('-created_at')
+        
+        grouped = defaultdict(list)
+        ungrouped = []
+        for abn in abnormals:
+            if abn.group:
+                grouped[abn.group].append(abn)
+            else:
+                ungrouped.append(abn)
+        context['grouped_abnormals'] = list(grouped.items())
+        context['ungrouped_abnormals'] = ungrouped
+        context['task_abnormals'] = abnormals
+        
         return context
 
 
@@ -958,6 +989,15 @@ class DailyReportView(LoginRequiredMixin, View):
         start_dt = datetime.combine(report_date, datetime.min.time())
         end_dt = datetime.combine(report_date, datetime.max.time())
 
+        # 负责人筛选
+        assignee_id = request.GET.get('assignee', '').strip()
+        selected_assignee = None
+        if assignee_id:
+            try:
+                selected_assignee = User.objects.get(pk=int(assignee_id), role__in=['fae', 'fae_leader'])
+            except (ValueError, User.DoesNotExist):
+                selected_assignee = None
+
         # ---------- 基础查询 ----------
         new_tasks = FAETask.objects.select_related('customer', 'assignee').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
@@ -965,11 +1005,10 @@ class DailyReportView(LoginRequiredMixin, View):
         all_task_logs = FAETaskLog.objects.select_related('task', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
         )
-        status_change_logs = all_task_logs.exclude(old_status='')
         new_tests = TestItem.objects.select_related('customer', 'tracker').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
         )
-        test_logs = TestItemLog.objects.select_related('test_item', 'operator').filter(
+        test_logs = TestItemLog.objects.select_related('test_item__solution__flash_model', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
         )
         new_abnormals = AbnormalSample.objects.select_related('customer', 'assignee').filter(
@@ -978,6 +1017,17 @@ class DailyReportView(LoginRequiredMixin, View):
         abnormal_logs = AbnormalLog.objects.select_related('abnormal_sample', 'operator').filter(
             created_at__gte=start_dt, created_at__lte=end_dt
         )
+
+        # 应用负责人筛选
+        if selected_assignee:
+            new_tasks = new_tasks.filter(assignee=selected_assignee)
+            all_task_logs = all_task_logs.filter(task__assignee=selected_assignee)
+            new_tests = new_tests.filter(tracker=selected_assignee)
+            test_logs = test_logs.filter(test_item__tracker=selected_assignee)
+            new_abnormals = new_abnormals.filter(assignee=selected_assignee)
+            abnormal_logs = abnormal_logs.filter(abnormal_sample__assignee=selected_assignee)
+
+        status_change_logs = all_task_logs.exclude(old_status='')
 
         # ---------- 今日任务：当天新建 / 有日志 / 关联新测试项 的 FAE 任务（去重） ----------
         task_ids = set(new_tasks.values_list('id', flat=True))
@@ -996,33 +1046,29 @@ class DailyReportView(LoginRequiredMixin, View):
         for log in all_task_logs:
             tid = log.task_id
             if tid not in task_latest_logs or log.created_at > task_latest_logs[tid]['time']:
-                task_latest_logs[tid] = log.action
+                task_latest_logs[tid] = {'time': log.created_at, 'action': log.action}
         # 补充：当天关联了新测试项的历史任务
         for task_id in new_test_linked_task_ids:
             if task_id not in task_latest_logs:
-                task_latest_logs[task_id] = '关联新测试项'
+                task_latest_logs[task_id] = {'action': '关联新测试项'}
 
         # 把 QuerySet 转成列表，附加 latest_log 属性（避免模板自定义过滤器）
         today_tasks_list = list(today_tasks)
         for task in today_tasks_list:
-            task.latest_log = task_latest_logs.get(task.id, '新建任务')
+            task.latest_log = task_latest_logs.get(task.id, {}).get('action', '新建任务')
 
-        # ---------- 今日行动：所有操作日志合并为统一时间线 ----------
+        # ---------- 今日行动：只展示当天新建的测试项 ----------
         actions = []
-        for log in all_task_logs:
-            # 不展示 FAE 任务的创建操作
-            if log.action.startswith('创建任务'):
-                continue
-            actions.append({
-                'time': log.created_at,
-                'category': 'FAE任务',
-                'target': log.task.task_number,
-                'action': log.action,
-                'operator': log.operator.get_full_name() or log.operator.username,
-                'comment': log.comment,
-                'link': f'/fae/tasks/{log.task.pk}/',
-            })
         for log in test_logs:
+            if not log.action.startswith('创建测试项'):
+                continue
+            test_item = log.test_item
+            solution = test_item.solution
+            if solution:
+                solution_desc = f"{solution.flash_model.name}x{solution.flash_count}"
+            else:
+                solution_desc = "-x-"
+            summary_text = f"{test_item.total_samples}片{solution_desc}方案样品进行{test_item.get_test_content_display()}测试"
             actions.append({
                 'time': log.created_at,
                 'category': '测试项',
@@ -1031,16 +1077,7 @@ class DailyReportView(LoginRequiredMixin, View):
                 'operator': log.operator.get_full_name() or log.operator.username,
                 'comment': log.comment,
                 'link': f'/testing/tests/{log.test_item.pk}/',
-            })
-        for log in abnormal_logs:
-            actions.append({
-                'time': log.created_at,
-                'category': '异常样品',
-                'target': log.abnormal_sample.sample_number,
-                'action': log.action,
-                'operator': log.operator.get_full_name() or log.operator.username,
-                'comment': log.comment,
-                'link': f'/abnormal/{log.abnormal_sample.pk}/',
+                'summary_text': summary_text,
             })
         actions.sort(key=lambda x: x['time'], reverse=True)
 
@@ -1061,7 +1098,7 @@ class DailyReportView(LoginRequiredMixin, View):
             if log.new_status == 'completed':
                 completed_test_ids.add(log.test_item_id)
         completed_test_ids.update(new_tests.filter(status='completed').values_list('id', flat=True))
-        completed_tests = TestItem.objects.select_related('customer', 'tracker').filter(
+        completed_tests = TestItem.objects.select_related('customer', 'tracker', 'solution__flash_model').filter(
             id__in=completed_test_ids
         ).order_by('-created_at')
 
@@ -1087,8 +1124,10 @@ class DailyReportView(LoginRequiredMixin, View):
             'stats': {
                 'today_tasks': len(today_tasks),
                 'actions': len(actions),
-                'conclusions': len(completed_tasks) + len(completed_tests) + len(resolved_abnormals),
-            }
+                'conclusions': len(completed_tests) + len(resolved_abnormals),
+            },
+            'fae_users': User.objects.filter(role__in=['fae', 'fae_leader']).order_by('username'),
+            'selected_assignee': selected_assignee,
         }
         return render(request, self.template_name, context)
 

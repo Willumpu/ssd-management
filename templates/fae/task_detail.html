@@ -4,6 +4,7 @@
 {% block page_title %}FAE任务详情{% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {{ comment_form.media }}
 <script>
     // 页面加载时自动标记该任务相关的所有通知为已读
@@ -43,6 +44,109 @@
         });
     });
 </script>
+<script>
+    // 测试项列表：方案/测试内容 筛选与排序
+    document.addEventListener('DOMContentLoaded', function() {
+        const solutionFilter = document.getElementById('solutionFilter');
+        const testContentFilter = document.getElementById('testContentFilter');
+        const tbody = document.getElementById('testTableBody');
+        const countBadge = document.getElementById('testCountBadge');
+        if (!solutionFilter || !tbody) return;
+        
+        const rows = Array.from(tbody.querySelectorAll('.test-row'));
+        let currentSortCol = null;
+        let currentSortDir = null;
+        
+        // 收集唯一方案值填充下拉框
+        const solutions = new Set();
+        rows.forEach(row => {
+            const sol = row.dataset.solution;
+            if (sol) solutions.add(sol);
+        });
+        Array.from(solutions).sort((a, b) => a.localeCompare(b, 'zh-CN')).forEach(sol => {
+            const opt = document.createElement('option');
+            opt.value = sol;
+            opt.textContent = sol;
+            solutionFilter.appendChild(opt);
+        });
+        
+        // 收集唯一测试内容值填充下拉框
+        if (testContentFilter) {
+            const testContents = new Set();
+            rows.forEach(row => {
+                const tc = row.dataset.testContent;
+                if (tc) testContents.add(tc);
+            });
+            Array.from(testContents).sort((a, b) => a.localeCompare(b, 'zh-CN')).forEach(tc => {
+                const opt = document.createElement('option');
+                opt.value = tc;
+                opt.textContent = tc;
+                testContentFilter.appendChild(opt);
+            });
+            testContentFilter.addEventListener('change', applyFilter);
+        }
+        
+        // 应用筛选（方案 AND 测试内容）
+        function applyFilter() {
+            const solVal = solutionFilter.value;
+            const tcVal = testContentFilter ? testContentFilter.value : '';
+            let visibleCount = 0;
+            rows.forEach(row => {
+                const matchSol = !solVal || row.dataset.solution === solVal;
+                const matchTc = !tcVal || row.dataset.testContent === tcVal;
+                if (matchSol && matchTc) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            if (countBadge) countBadge.textContent = visibleCount;
+        }
+        
+        solutionFilter.addEventListener('change', applyFilter);
+        
+        // 全局排序函数（供 onclick 调用）
+        window.sortTests = function(column) {
+            if (column !== 'solution' && column !== 'test_content') return;
+            
+            // 重置旧列图标
+            if (currentSortCol && currentSortCol !== column) {
+                const oldIcon = document.getElementById('sortIcon-' + currentSortCol);
+                if (oldIcon) oldIcon.className = 'fas fa-sort text-slate-600 text-xs';
+            }
+            
+            const icon = document.getElementById('sortIcon-' + column);
+            if (!icon) return;
+            
+            if (currentSortCol === column && currentSortDir === 'asc') {
+                currentSortDir = 'desc';
+                icon.className = 'fas fa-sort-down text-blue-400 text-xs';
+            } else {
+                currentSortDir = 'asc';
+                icon.className = 'fas fa-sort-up text-blue-400 text-xs';
+            }
+            currentSortCol = column;
+            
+            rows.sort((a, b) => {
+                let aVal, bVal;
+                if (column === 'solution') {
+                    aVal = a.dataset.solution || '';
+                    bVal = b.dataset.solution || '';
+                } else {
+                    aVal = a.dataset.testContent || '';
+                    bVal = b.dataset.testContent || '';
+                }
+                return currentSortDir === 'asc'
+                    ? aVal.localeCompare(bVal, 'zh-CN')
+                    : bVal.localeCompare(aVal, 'zh-CN');
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+            applyFilter();
+        };
+    });
+</script>
 {% endblock %}
 
 {% block content %}
@@ -60,9 +164,6 @@
                 <h2 class="text-lg lg:text-xl font-bold text-white">{{ task.customer.customer_code }}</h2>
             </div>
             <div class="flex gap-2">
-                <a href="{% url 'testing:test_create' %}?fae_task={{ task.pk }}" class="px-3 lg:px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/30 text-sm">
-                    <i class="fas fa-vial mr-1 lg:mr-2"></i><span class="hidden lg:inline">添加测试项</span>
-                </a>
                 <a href="{% url 'fae:task_update' task.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm">
                     <i class="fas fa-edit mr-1 lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
                 </a>
@@ -207,6 +308,258 @@
     </div>
     {% endif %}
 
+    <!-- 桑基图 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-3 lg:mb-4">
+            <h3 class="font-semibold text-white text-sm lg:text-base flex items-center gap-2">
+                <i class="fas fa-project-diagram text-purple-400"></i>
+                测试流程桑基图
+            </h3>
+            <a href="{% url 'testing:test_flow_sankey' task.pk %}" target="_blank" class="text-xs text-purple-400 hover:text-purple-300">
+                <i class="fas fa-external-link-alt mr-1"></i>全屏查看
+            </a>
+        </div>
+        <iframe src="{% url 'testing:sankey_embed' task.pk %}" class="w-full rounded-lg border border-slate-700/50" style="height: 520px; background: #0f172a;"></iframe>
+    </div>
+
+    <!-- 测试项列表 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-3 lg:mb-4 flex-wrap gap-2">
+            <h3 class="font-semibold text-white text-sm lg:text-base flex items-center gap-2">
+                <i class="fas fa-vial text-blue-400"></i>
+                测试项列表
+                <span id="testCountBadge" class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ task_tests|length }}</span>
+            </h3>
+            <div class="flex items-center gap-2">
+                <select id="solutionFilter" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                    <option value="">全部方案</option>
+                </select>
+                <select id="testContentFilter" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500">
+                    <option value="">全部测试内容</option>
+                </select>
+            </div>
+        </div>
+        {% if task_tests %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="testTable">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-700 text-left">
+                        <th class="py-2 px-3 w-10">#</th>
+                        <th class="py-2 px-3 cursor-pointer hover:text-white select-none" onclick="sortTests('solution')">
+                            软件版本 <i id="sortIcon-solution" class="fas fa-sort text-slate-600 text-xs"></i>
+                        </th>
+                        <th class="py-2 px-3 cursor-pointer hover:text-white select-none" onclick="sortTests('test_content')">
+                            测试内容 <i id="sortIcon-test_content" class="fas fa-sort text-slate-600 text-xs"></i>
+                        </th>
+                        <th class="py-2 px-3">样品来源</th>
+                        <th class="py-2 px-3">总数</th>
+                        <th class="py-2 px-3">通过</th>
+                        <th class="py-2 px-3">测试中</th>
+                        <th class="py-2 px-3">复测中</th>
+                        <th class="py-2 px-3">异常</th>
+                        <th class="py-2 px-3">良率</th>
+                        <th class="py-2 px-3">跟踪人</th>
+                        <th class="py-2 px-3">测试开始时间</th>
+                    </tr>
+                </thead>
+                <tbody id="testTableBody">
+                    {% for test in task_tests %}
+                    <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors test-row cursor-pointer" data-test-id="{{ test.pk }}" data-solution="{{ test.solution.software_version|default:'' }}" data-test-content="{{ test.get_test_content_display }}" data-passed="{{ test.passed_samples }}" data-total="{{ test.total_samples }}" onclick="window.location.href='{% url 'testing:test_detail' test.pk %}'">
+                        <td class="py-2 px-3 text-slate-400 font-mono">{{ forloop.counter }}</td>
+                        <td class="py-2 px-3">
+                            <a href="{% url 'testing:test_detail' test.pk %}" class="text-blue-400 hover:text-blue-300">{{ test.solution.software_version|default:"--" }}</a>
+                        </td>
+                        <td class="py-2 px-3 text-white">{{ test.get_test_content_display }}</td>
+                        <td class="py-2 px-3 text-slate-300">{{ test.sample_source|default:"--" }}</td>
+                        <td class="py-2 px-3 text-white">{{ test.total_samples }}</td>
+                        <td class="py-2 px-3 text-green-400">{{ test.passed_samples }}</td>
+                        <td class="py-2 px-3 text-yellow-400">{{ test.testing_samples }}</td>
+                        <td class="py-2 px-3 text-blue-400">{{ test.retesting_samples }}</td>
+                        <td class="py-2 px-3 text-red-400">{{ test.abnormal_samples_count }}</td>
+                        <td class="py-2 px-3">
+                            {% if test.yield_rate is not None %}
+                                <span class="text-green-400">{{ test.yield_rate|floatformat:2 }}%</span>
+                            {% else %}
+                                <span class="text-slate-500">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 px-3 text-slate-300">{{ test.tracker.get_full_name|default:test.tracker.username }}</td>
+                        <td class="py-2 px-3 text-slate-500">{{ test.start_date|date:"m-d H:i"|default:"--" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-slate-500">
+            <i class="fas fa-vial text-3xl mb-3 opacity-50"></i>
+            <p class="text-sm">暂无测试项</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 异常分析饼状图 -->
+    {% if task_tests %}
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <h3 class="font-semibold text-white text-sm lg:text-base flex items-center gap-2 mb-4">
+            <i class="fas fa-chart-pie text-purple-400"></i>
+            异常分析
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {% for test in task_tests %}
+            <div class="bg-slate-900/50 rounded-lg border border-slate-800 p-4">
+                <h4 class="text-white font-medium text-sm mb-3 flex items-center gap-2">
+                    <span class="text-slate-400 font-mono">#{{ forloop.counter }}</span>
+                    <span>{{ test.get_test_content_display }}</span>
+                    <span class="text-slate-500 text-xs">{{ test.solution.software_version|default:"--" }}</span>
+                </h4>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="w-full sm:w-1/2 flex items-center justify-center" style="height: 180px; position: relative;">
+                        {% if test.abnormal_samples_count > 0 %}
+                        <canvas id="abnormalChart{{ test.pk }}"></canvas>
+                        {% else %}
+                        <div class="text-center text-slate-500">
+                            <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
+                            <p class="text-xs">无异常样品</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="w-full sm:w-1/2 space-y-3">
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">测试参数</p>
+                            <div class="text-sm space-y-1">
+                                {% with params=test.parameters.all %}
+                                {% if params %}
+                                    {% for param in params %}
+                                    <div class="flex justify-between text-xs">
+                                        <span class="text-slate-400">{{ param.parameter.name }}:</span>
+                                        <span class="text-slate-200">{{ param.value|default:'--' }}</span>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-slate-500 text-xs">--</p>
+                                {% endif %}
+                                {% endwith %}
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 mb-1">异常分析明细</p>
+                            <div class="space-y-1">
+                                {% for analysis in test.abnormal_analyses.all %}
+                                <div class="flex justify-between text-xs">
+                                    <span class="text-slate-300">{{ analysis.reason.name }}</span>
+                                    <span class="text-slate-400">
+                                        {{ analysis.quantity }}片
+                                        {% if test.abnormal_samples_count > 0 %}
+                                            {% widthratio analysis.quantity test.abnormal_samples_count 100 as ratio %}
+                                            ({{ ratio|floatformat:1 }}%)
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                {% empty %}
+                                <p class="text-xs text-slate-500">暂无异常分析</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 异常样品列表 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-3 lg:mb-4">
+            <h3 class="font-semibold text-white text-sm lg:text-base flex items-center gap-2">
+                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                异常样品列表
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ task_abnormals|length }}</span>
+            </h3>
+        </div>
+        {% if task_abnormals %}
+        <div class="space-y-2 lg:space-y-3">
+            <!-- 按组折叠展示 -->
+            {% for group, samples in grouped_abnormals %}
+            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
+                <!-- 组标题（可点击折叠） -->
+                <div class="abnormal-group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
+                     onclick="toggleAbnormalGroup(this)">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-layer-group text-orange-400 text-sm"></i>
+                        <div>
+                            <a href="{% url 'abnormal:group_detail' group.pk %}" class="text-white text-sm font-medium hover:text-blue-300" onclick="event.stopPropagation()">
+                                {{ group.group_number }}
+                            </a>
+                            <span class="text-xs text-slate-500 ml-2">{{ samples|length }} 片</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow"></i>
+                </div>
+                <!-- 组内样品 -->
+                <div class="group-content px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
+                    {% for abn in samples %}
+                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
+                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
+                        <div class="flex-1 min-w-0">
+                            <a href="{% url 'abnormal:abnormal_detail' abn.pk %}" class="text-yellow-400 hover:text-yellow-300 mono text-sm truncate block">
+                                {{ abn.sample_number }}
+                            </a>
+                            <p class="text-xs text-slate-400">
+                                {% if abn.test_item %}{{ abn.test_item.get_test_content_display }}{% else %}-{% endif %}
+                                · {{ abn.assignee.get_full_name|default:abn.assignee.username|default:"-" }}
+                            </p>
+                        </div>
+                        <span class="text-xs text-slate-500 flex-shrink-0">{{ abn.created_at|date:"m-d H:i" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- 未分组样品 -->
+            {% if ungrouped_abnormals %}
+            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
+                <div class="abnormal-group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
+                     onclick="toggleAbnormalGroup(this)">
+                    <div class="flex items-center gap-3">
+                        <i class="fas fa-vial text-slate-400 text-sm"></i>
+                        <div>
+                            <span class="text-white text-sm font-medium">未分组样品</span>
+                            <span class="text-xs text-slate-500 ml-2">{{ ungrouped_abnormals|length }} 片</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow"></i>
+                </div>
+                <div class="group-content px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
+                    {% for abn in ungrouped_abnormals %}
+                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
+                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
+                        <div class="flex-1 min-w-0">
+                            <a href="{% url 'abnormal:abnormal_detail' abn.pk %}" class="text-yellow-400 hover:text-yellow-300 mono text-sm truncate block">
+                                {{ abn.sample_number }}
+                            </a>
+                            <p class="text-xs text-slate-400">
+                                {% if abn.test_item %}{{ abn.test_item.get_test_content_display }}{% else %}-{% endif %}
+                                · {{ abn.assignee.get_full_name|default:abn.assignee.username|default:"-" }}
+                            </p>
+                        </div>
+                        <span class="text-xs text-slate-500 flex-shrink-0">{{ abn.created_at|date:"m-d H:i" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-slate-500">
+            <i class="fas fa-exclamation-circle text-3xl mb-3 opacity-50"></i>
+            <p class="text-sm">暂无异样品</p>
+        </div>
+        {% endif %}
+    </div>
+
     <!-- 评论区域 - 移动端优化 -->
     <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50">
         <h3 class="text-base lg:text-lg font-semibold text-white mb-4 lg:mb-6 flex items-center gap-2">
@@ -337,5 +690,142 @@
     </div>
 </div>
 
+<!-- 测试参数悬浮提示 -->
+<div id="param-tooltip" class="hidden fixed z-50 pointer-events-none">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-3 text-sm min-w-[180px]">
+        <div class="text-slate-300 text-xs font-medium mb-2 border-b border-slate-700 pb-1 flex items-center gap-1">
+            <i class="fas fa-sliders-h text-blue-400"></i>测试参数
+        </div>
+        <div id="param-tooltip-body" class="space-y-1"></div>
+    </div>
+</div>
+
+<script>
+    // 测试项参数悬浮提示
+    const testParamsData = {
+        {% for test in task_tests %}
+        {{ test.pk }}: [
+            {% for param in test.parameters.all %}
+            {name: "{{ param.parameter.name|escapejs }}", value: "{{ param.value|escapejs }}", unit: "{{ param.parameter.unit|default:''|escapejs }}"}{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const tooltip = document.getElementById('param-tooltip');
+        const tooltipBody = document.getElementById('param-tooltip-body');
+        if (!tooltip || !tooltipBody) return;
+
+        const tbody = document.getElementById('testTableBody');
+        if (!tbody) return;
+
+        tbody.querySelectorAll('.test-row').forEach(row => {
+            row.addEventListener('mouseenter', function(e) {
+                const testId = this.dataset.testId;
+                const params = testParamsData[testId];
+                if (!params || params.length === 0) {
+                    tooltipBody.innerHTML = '<span class="text-slate-500 text-xs">暂无参数</span>';
+                } else {
+                    tooltipBody.innerHTML = params.map(p => `
+                        <div class="flex justify-between gap-4 text-xs">
+                            <span class="text-slate-400">${p.name}${p.unit ? ' (' + p.unit + ')' : ''}</span>
+                            <span class="text-white font-medium">${p.value}</span>
+                        </div>
+                    `).join('');
+                }
+                tooltip.classList.remove('hidden');
+            });
+
+            row.addEventListener('mousemove', function(e) {
+                const x = e.clientX + 15;
+                const y = e.clientY + 15;
+                // 防止超出视口右边界
+                const rect = tooltip.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width - 10;
+                const maxY = window.innerHeight - rect.height - 10;
+                tooltip.style.left = Math.min(x, maxX) + 'px';
+                tooltip.style.top = Math.min(y, maxY) + 'px';
+            });
+
+            row.addEventListener('mouseleave', function() {
+                tooltip.classList.add('hidden');
+            });
+        });
+    });
+
+    // 异常样品组折叠
+    function toggleAbnormalGroup(header) {
+        const content = header.nextElementSibling;
+        const arrow = header.querySelector('.group-arrow');
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            arrow.style.transform = 'rotate(0deg)';
+        } else {
+            content.classList.add('hidden');
+            arrow.style.transform = 'rotate(-90deg)';
+        }
+    }
+</script>
+
+<script>
+    // 异常分析饼图
+    document.addEventListener('DOMContentLoaded', function() {
+        const colors = [
+            '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6',
+            '#a855f7', '#ec4899', '#06b6d4', '#6366f1', '#14b8a6'
+        ];
+        {% for test in task_tests %}
+        (function() {
+            const ctx = document.getElementById('abnormalChart{{ test.pk }}');
+            if (!ctx) return;
+            const labels = [];
+            const data = [];
+            const bgColors = [];
+            let colorIdx = 0;
+            {% for analysis in test.abnormal_analyses.all %}
+            labels.push('{{ analysis.reason.name|escapejs }}');
+            data.push({{ analysis.quantity }});
+            bgColors.push(colors[colorIdx % colors.length]);
+            colorIdx++;
+            {% endfor %}
+            const analyzedTotal = data.reduce(function(a, b) { return a + b; }, 0);
+            const abnormalCount = {{ test.abnormal_samples_count }};
+            if (abnormalCount > analyzedTotal) {
+                labels.push('未分类');
+                data.push(abnormalCount - analyzedTotal);
+                bgColors.push('#64748b');
+            }
+            if (data.length === 0) return;
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#94a3b8',
+                                boxWidth: 10,
+                                font: { size: 10 },
+                                padding: 8
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+        {% endfor %}
+    });
+</script>
 
 {% endblock %}

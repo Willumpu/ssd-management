@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ log_file.filename }} - 日志分析器</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  background: #0b1120;
+  color: #cbd5e1;
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* 顶部工具栏 */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 48px;
+  background: #1e293b; border-bottom: 1px solid #334155;
+  display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 100;
+}
+.toolbar .back-btn {
+  color: #94a3b8; text-decoration: none; font-size: 14px;
+  display: flex; align-items: center; gap: 4px; cursor: pointer;
+}
+.toolbar .back-btn:hover { color: #e2e8f0; }
+.toolbar .file-info {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px; overflow: hidden;
+}
+.toolbar .file-info .filename {
+  color: #f1f5f9; font-weight: 600; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.toolbar .file-info .meta {
+  color: #64748b; font-size: 12px; white-space: nowrap;
+}
+.toolbar .search-box {
+  position: relative; display: flex; align-items: center; gap: 6px;
+}
+.toolbar .search-box input {
+  width: 200px; height: 28px; padding: 0 10px;
+  background: #0f172a; border: 1px solid #475569; border-radius: 4px;
+  color: #e2e8f0; font-size: 13px; outline: none; font-family: inherit;
+}
+.toolbar .search-box input:focus { border-color: #3b82f6; }
+.toolbar .search-box input::placeholder { color: #64748b; }
+.toolbar .search-box .match-count {
+  color: #94a3b8; font-size: 12px; min-width: 50px; text-align: right;
+}
+.toolbar .search-box .nav-btn {
+  width: 24px; height: 24px; border: none; border-radius: 4px;
+  background: #334155; color: #cbd5e1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.toolbar .search-box .nav-btn:hover { background: #475569; }
+.toolbar .search-box .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 主体布局 */
+.main {
+  position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
+  display: flex;
+}
+
+/* 搜索结果面板 */
+.search-panel {
+  width: 340px; min-width: 340px; background: #0f172a;
+  border-right: 1px solid #1e293b; display: none;
+  flex-direction: column; overflow: hidden;
+}
+.search-panel.active { display: flex; }
+.search-panel .panel-header {
+  padding: 10px 14px; border-bottom: 1px solid #1e293b;
+  font-size: 12px; color: #94a3b8; display: flex;
+  justify-content: space-between; align-items: center;
+}
+.search-panel .panel-header .clear { color: #64748b; cursor: pointer; }
+.search-panel .panel-header .clear:hover { color: #e2e8f0; }
+.search-panel .results { flex: 1; overflow-y: auto; padding: 4px 0; }
+.search-panel .result-item {
+  padding: 6px 14px; cursor: pointer; border-left: 3px solid transparent;
+  font-size: 12px; line-height: 18px;
+}
+.search-panel .result-item:hover { background: #1e293b; border-left-color: #3b82f6; }
+.search-panel .result-item.active { background: rgba(59,130,246,0.15); border-left-color: #3b82f6; }
+.search-panel .result-item .line-no { color: #64748b; margin-right: 6px; user-select: none; }
+.search-panel .result-item .match-text { color: #e2e8f0; word-break: break-all; }
+.search-panel .result-item .match-text .hl { background: rgba(234,179,8,0.25); color: #fbbf24; border-radius: 2px; padding: 0 1px; }
+.search-panel .empty { padding: 20px; text-align: center; color: #475569; font-size: 12px; }
+.search-panel .load-more {
+  padding: 10px 14px; text-align: center; color: #60a5fa; font-size: 12px;
+  cursor: pointer; border-top: 1px solid #1e293b; margin-top: 4px;
+}
+.search-panel .load-more:hover { color: #93c5fd; background: #1e293b; }
+
+/* 日志内容区域 */
+.log-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.log-content {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+
+.log-line {
+  display: flex; align-items: flex-start; min-height: 20px;
+  padding: 0 16px; white-space: pre-wrap; word-break: break-word;
+}
+.log-line:hover { background: rgba(59,130,246,0.06); }
+.log-line.highlight { background: rgba(234,179,8,0.15); }
+.log-line.highlight .line-no { color: #fbbf24; }
+.log-line .line-no {
+  width: 60px; min-width: 60px; text-align: right;
+  color: #475569; user-select: none; padding-right: 12px;
+  border-right: 1px solid #1e293b; margin-right: 12px;
+}
+.log-line .line-text { flex: 1; }
+
+/* 日志级别颜色 */
+.log-line.level-error .line-text { color: #f87171; }
+.log-line.level-warn  .line-text { color: #fbbf24; }
+.log-line.level-info  .line-text { color: #60a5fa; }
+.log-line.level-debug .line-text { color: #94a3b8; }
+
+.log-line .line-text .search-hl {
+  background: rgba(234,179,8,0.3); color: #fbbf24;
+  border-radius: 2px; padding: 0 1px;
+}
+
+/* 分页控件 */
+.pagination {
+  height: 40px; background: #1e293b; border-top: 1px solid #334155;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 16px; flex-shrink: 0;
+}
+.pagination button {
+  height: 26px; padding: 0 12px; border: 1px solid #475569; border-radius: 4px;
+  background: #334155; color: #cbd5e1; cursor: pointer; font-size: 12px;
+}
+.pagination button:hover { background: #475569; }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination .page-info {
+  color: #94a3b8; font-size: 13px; display: flex; align-items: center; gap: 6px;
+}
+.pagination .page-info input {
+  width: 50px; height: 24px; text-align: center;
+  background: #0f172a; border: 1px solid #475569; border-radius: 4px;
+  color: #e2e8f0; font-size: 13px; outline: none; font-family: inherit;
+}
+.pagination .page-info span { color: #64748b; }
+
+.loading {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #64748b; font-size: 14px;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="javascript:history.back()" class="back-btn">&#8592; 返回</a>
+  <div class="file-info">
+    <span class="filename" title="{{ log_file.filename }}">{{ log_file.filename }}</span>
+    <span class="meta" id="fileMeta"></span>
+  </div>
+  <div class="search-box">
+    <span class="match-count" id="matchCount"></span>
+    <button class="nav-btn" id="prevBtn" title="上一个 (Shift+Enter)" disabled>&#9650;</button>
+    <button class="nav-btn" id="nextBtn" title="下一个 (Enter)" disabled>&#9660;</button>
+    <input type="text" id="searchInput" placeholder="搜索关键词 / 正则..." autocomplete="off">
+  </div>
+</div>
+
+<div class="main">
+  <div class="search-panel" id="searchPanel">
+    <div class="panel-header">
+      <span>搜索结果</span>
+      <span class="clear" id="clearSearch">清空</span>
+    </div>
+    <div class="results" id="searchResults"></div>
+  </div>
+  <div class="log-container">
+    <div class="loading" id="loading">正在加载日志文件...</div>
+    <div class="log-content" id="logContent"></div>
+    <div class="pagination" id="pagination" style="display:none;">
+      <button id="prevPage" title="上一页">&#9664; 上一页</button>
+      <div class="page-info">
+        第 <input type="text" id="pageInput" value="1" autocomplete="off"> / <span id="totalPages">1</span> 页
+      </div>
+      <button id="nextPage" title="下一页">下一页 &#9654;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const PAGE_SIZE = 500;
+  const FILE_URL = '{{ file_url }}';
+
+  const searchInput = document.getElementById('searchInput');
+  const matchCount = document.getElementById('matchCount');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const searchPanel = document.getElementById('searchPanel');
+  const searchResults = document.getElementById('searchResults');
+  const clearSearch = document.getElementById('clearSearch');
+  const logContent = document.getElementById('logContent');
+  const loading = document.getElementById('loading');
+  const fileMeta = document.getElementById('fileMeta');
+  const pagination = document.getElementById('pagination');
+  const prevPageBtn = document.getElementById('prevPage');
+  const nextPageBtn = document.getElementById('nextPage');
+  const pageInput = document.getElementById('pageInput');
+  const totalPagesEl = document.getElementById('totalPages');
+
+  let allLines = [];
+  let totalLines = 0;
+  let totalPages = 0;
+  let currentPage = 0; // 0-based
+  let searchMatches = [];
+  let currentMatchIdx = -1;
+  let searchKeyword = '';
+  let searchRenderCount = 100;
+
+  // ===== 加载日志文件 =====
+  async function init() {
+    try {
+      const res = await fetch(FILE_URL);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+
+      allLines = text.split(/\r?\n/);
+      totalLines = allLines.length;
+      totalPages = Math.max(1, Math.ceil(totalLines / PAGE_SIZE));
+
+      loading.style.display = 'none';
+      pagination.style.display = '';
+      fileMeta.textContent = `${totalLines.toLocaleString()} 行 · ${formatSize(new Blob([text]).size)}`;
+      totalPagesEl.textContent = totalPages;
+
+      showPage(0);
+    } catch (e) {
+      loading.innerHTML = '<span style="color:#ef4444">加载失败：' + e.message + '</span>';
+    }
+  }
+
+  // ===== 分页展示 =====
+  function showPage(pageNum) {
+    if (pageNum < 0) pageNum = 0;
+    if (pageNum >= totalPages) pageNum = totalPages - 1;
+    currentPage = pageNum;
+
+    const start = pageNum * PAGE_SIZE;
+    const lines = allLines.slice(start, start + PAGE_SIZE);
+    logContent.innerHTML = renderPage(start, lines);
+
+    // 更新分页控件
+    pageInput.value = pageNum + 1;
+    prevPageBtn.disabled = pageNum === 0;
+    nextPageBtn.disabled = pageNum >= totalPages - 1;
+
+    // 滚动到当前选中的匹配行（如果在当前页），否则滚动到当前页的第一个匹配行
+    requestAnimationFrame(() => {
+      if (searchMatches.length > 0 && currentMatchIdx >= 0) {
+        const match = searchMatches[currentMatchIdx];
+        const matchPage = Math.floor(match.line_no / PAGE_SIZE);
+        let targetLine = match.line_no;
+        if (matchPage !== pageNum) {
+          const firstMatchInPage = searchMatches.find(m => Math.floor(m.line_no / PAGE_SIZE) === pageNum);
+          if (firstMatchInPage) targetLine = firstMatchInPage.line_no;
+        }
+        const el = logContent.querySelector(`[data-line="${targetLine}"]`);
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      }
+    });
+  }
+
+  function renderPage(pageStart, lines) {
+    let html = '';
+    for (let i = 0; i < lines.length; i++) {
+      const lineNo = pageStart + i;
+      const text = escapeHtml(lines[i]);
+      const isHighlight = (currentMatchIdx >= 0 && searchMatches[currentMatchIdx]?.line_no === lineNo);
+
+      // 日志级别颜色
+      let levelClass = '';
+      const upper = (lines[i] || '').toUpperCase();
+      if (/\bERROR\b|\bFATAL\b|\bEXCEPTION\b/.test(upper)) levelClass = 'level-error';
+      else if (/\bWARN\b|\bWARNING\b/.test(upper)) levelClass = 'level-warn';
+      else if (/\bINFO\b/.test(upper)) levelClass = 'level-info';
+      else if (/\bDEBUG\b|\bTRACE\b/.test(upper)) levelClass = 'level-debug';
+
+      // 搜索高亮
+      let displayText = text;
+      if (searchKeyword) {
+        try {
+          const re = new RegExp(escapeRegExp(searchKeyword), 'gi');
+          displayText = text.replace(re, m => `<span class="search-hl">${m}</span>`);
+        } catch (e) {}
+      }
+
+      html += `<div class="log-line ${isHighlight ? 'highlight' : ''} ${levelClass}" data-line="${lineNo}">` +
+              `<span class="line-no">${lineNo + 1}</span>` +
+              `<span class="line-text">${displayText || ' '}</span>` +
+              `</div>`;
+    }
+    return html;
+  }
+
+  // ===== 分页控件事件 =====
+  prevPageBtn.addEventListener('click', () => showPage(currentPage - 1));
+  nextPageBtn.addEventListener('click', () => showPage(currentPage + 1));
+  pageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const val = parseInt(pageInput.value);
+      if (!isNaN(val) && val >= 1 && val <= totalPages) {
+        showPage(val - 1);
+      } else {
+        pageInput.value = currentPage + 1;
+      }
+      pageInput.blur();
+    }
+  });
+  pageInput.addEventListener('blur', () => {
+    pageInput.value = currentPage + 1;
+  });
+
+  // ===== 搜索（纯前端） =====
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 200);
+  });
+
+  function doSearch() {
+    const kw = searchInput.value.trim();
+    if (!kw) { clearSearchResults(); return; }
+    searchKeyword = kw;
+    searchMatches = [];
+
+    try {
+      const re = new RegExp(kw, 'i');
+      for (let i = 0; i < allLines.length; i++) {
+        if (re.test(allLines[i])) {
+          searchMatches.push({ line_no: i, text: allLines[i].substring(0, 200) });
+        }
+      }
+    } catch (e) {
+      const lower = kw.toLowerCase();
+      for (let i = 0; i < allLines.length; i++) {
+        if (allLines[i].toLowerCase().includes(lower)) {
+          searchMatches.push({ line_no: i, text: allLines[i].substring(0, 200) });
+        }
+      }
+    }
+
+    searchRenderCount = 100;
+    currentMatchIdx = searchMatches.length > 0 ? 0 : -1;
+    updateSearchUI();
+    if (searchMatches.length > 0) jumpToMatch(0);
+  }
+
+  function clearSearchResults() {
+    searchKeyword = '';
+    searchMatches = [];
+    currentMatchIdx = -1;
+    updateSearchUI();
+    showPage(currentPage);
+  }
+
+  function updateSearchUI() {
+    if (searchMatches.length === 0) {
+      matchCount.textContent = searchKeyword ? '0/0' : '';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      searchPanel.classList.remove('active');
+      searchResults.innerHTML = searchKeyword ? '<div class="empty">无匹配结果</div>' : '';
+      return;
+    }
+    matchCount.textContent = (currentMatchIdx + 1) + '/' + searchMatches.length;
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
+    searchPanel.classList.add('active');
+
+    const renderCount = Math.min(searchMatches.length, searchRenderCount);
+    let html = '';
+    for (let idx = 0; idx < renderCount; idx++) {
+      const m = searchMatches[idx];
+      const active = idx === currentMatchIdx ? 'active' : '';
+      let snippet = escapeHtml(m.text.substring(0, 250));
+      try {
+        const re = new RegExp(escapeRegExp(searchKeyword), 'gi');
+        snippet = snippet.replace(re, match => `<span class="hl">${match}</span>`);
+      } catch (e) {}
+      html += `<div class="result-item ${active}" data-idx="${idx}">` +
+              `<span class="line-no">${m.line_no + 1}</span>` +
+              `<span class="match-text">${snippet}</span>` +
+              `</div>`;
+    }
+    if (searchMatches.length > searchRenderCount) {
+      const remaining = searchMatches.length - searchRenderCount;
+      html += `<div class="load-more" id="loadMoreBtn">加载下一批（${remaining} 条）</div>`;
+    }
+    searchResults.innerHTML = html;
+
+    const activeEl = searchResults.querySelector('.active');
+    if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+  }
+
+  function jumpToMatch(idx) {
+    if (idx < 0 || idx >= searchMatches.length) return;
+    currentMatchIdx = idx;
+    const lineNo = searchMatches[idx].line_no;
+    const targetPage = Math.floor(lineNo / PAGE_SIZE);
+    showPage(targetPage);
+    updateSearchUI();
+  }
+
+  prevBtn.addEventListener('click', () => {
+    if (!searchMatches.length) return;
+    jumpToMatch(currentMatchIdx <= 0 ? searchMatches.length - 1 : currentMatchIdx - 1);
+  });
+  nextBtn.addEventListener('click', () => {
+    if (!searchMatches.length) return;
+    jumpToMatch(currentMatchIdx >= searchMatches.length - 1 ? 0 : currentMatchIdx + 1);
+  });
+  clearSearch.addEventListener('click', () => {
+    searchInput.value = '';
+    clearSearchResults();
+  });
+  searchResults.addEventListener('click', (e) => {
+    const loadMoreBtn = e.target.closest('.load-more');
+    if (loadMoreBtn) {
+      searchRenderCount += 100;
+      updateSearchUI();
+      return;
+    }
+    const item = e.target.closest('.result-item');
+    if (item) jumpToMatch(parseInt(item.dataset.idx));
+  });
+
+  // 键盘快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && document.activeElement === searchInput) {
+      e.preventDefault();
+      if (searchMatches.length > 0) {
+        jumpToMatch(e.shiftKey
+          ? (currentMatchIdx <= 0 ? searchMatches.length - 1 : currentMatchIdx - 1)
+          : (currentMatchIdx >= searchMatches.length - 1 ? 0 : currentMatchIdx + 1));
+      }
+    }
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      clearSearchResults();
+      searchInput.blur();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
+
+  // ===== 工具函数 =====
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+    return (bytes/1024/1024/1024).toFixed(1) + ' GB';
+  }
+
+  // 启动
+  init();
+})();
+</script>
+
+</body>
+</html>

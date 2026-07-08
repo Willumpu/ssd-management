@@ -9,6 +9,85 @@ from django_ckeditor_5.fields import CKEditor5Field
 from fae.models import User, Customer
 
 
+class AbnormalSampleGroup(models.Model):
+    """异常样品组"""
+    # 状态选项
+    STATUS_CHOICES = [
+        ('pending_analysis', '待分析'),
+        ('retesting', '复测中'),
+        ('resolved', '已解决'),
+    ]
+    
+    # 优先级
+    PRIORITY_CHOICES = [
+        ('urgent', '紧急'),
+        ('high', '高'),
+        ('normal', '一般'),
+    ]
+    
+    group_number = models.CharField('组编号', max_length=20, unique=True, editable=False)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, verbose_name='所属客户')
+    project = models.ForeignKey('project.Project', on_delete=models.SET_NULL, verbose_name='所属项目',
+                                 null=True, blank=True, related_name='abnormal_groups')
+    status = models.CharField('当前状态', max_length=20, choices=STATUS_CHOICES, default='pending_analysis')
+    priority = models.CharField('优先级', max_length=20, choices=PRIORITY_CHOICES, default='normal')
+    solution = models.ForeignKey('solution.Solution', on_delete=models.SET_NULL, verbose_name='样品方案',
+                                  null=True, blank=True, related_name='abnormal_groups')
+    total_count = models.PositiveIntegerField('样品数量', default=0)
+    abnormal_summary = models.CharField('异常概述', max_length=200, blank=True)
+    abnormal_description = CKEditor5Field('异常描述')
+    test_item = models.ForeignKey('testing.TestItem', on_delete=models.SET_NULL, verbose_name='所属测试',
+                                   null=True, blank=True, related_name='abnormal_groups')
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, verbose_name='分析负责人',
+                                  null=True, blank=True, related_name='assigned_groups')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='登记人', related_name='created_groups')
+    created_at = models.DateTimeField('登记时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    
+    class Meta:
+        verbose_name = '异常样品组'
+        verbose_name_plural = '异常样品组'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.group_number} - {self.customer.customer_code}"
+    
+    def generate_group_number(self):
+        """生成组编号：{customer_code}-G{三位序号}
+        
+        删除后重新创建会优先回补空缺编号
+        """
+        if not self.customer:
+            return None
+        
+        existing_numbers = AbnormalSampleGroup.objects.filter(
+            customer=self.customer
+        ).values_list('group_number', flat=True)
+        
+        pattern = re.compile(rf'^{re.escape(self.customer.customer_code)}-G(\d+)$')
+        existing_seqs = set()
+        
+        for num in existing_numbers:
+            match = pattern.match(num)
+            if match:
+                existing_seqs.add(int(match.group(1)))
+        
+        # 从 1 开始找第一个不存在的序号（回补空缺）
+        seq = 1
+        while seq in existing_seqs:
+            seq += 1
+        
+        return f"{self.customer.customer_code}-G{seq:03d}"
+    
+    def save(self, *args, **kwargs):
+        is_new = not self.pk
+        if is_new:
+            new_group_number = self.generate_group_number()
+            if new_group_number:
+                self.group_number = new_group_number
+        super().save(*args, **kwargs)
+
+
 class AbnormalSample(models.Model):
     """异常样品管理"""
     # 日志获取选项
@@ -47,11 +126,15 @@ class AbnormalSample(models.Model):
                                   null=True, blank=True, related_name='abnormal_samples')
     logs_collected = models.JSONField('日志获取', default=list, blank=True,
                                        help_text='选择的日志类型列表')
+    abnormal_summary = models.CharField('异常概述', max_length=200, blank=True)
     abnormal_description = CKEditor5Field('异常描述')
     test_item = models.ForeignKey('testing.TestItem', on_delete=models.SET_NULL, verbose_name='所属测试',
                                    null=True, blank=True, related_name='abnormal_samples')
     assignee = models.ForeignKey(User, on_delete=models.SET_NULL, verbose_name='分析负责人',
                                   null=True, blank=True, related_name='assigned_abnormals')
+    group = models.ForeignKey(AbnormalSampleGroup, on_delete=models.CASCADE, verbose_name='所属组',
+                               null=True, blank=True, related_name='samples')
+    is_edited_individually = models.BooleanField('是否单独编辑过', default=False)
     resolved_at = models.DateTimeField('解决时间', null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='登记人', related_name='created_abnormals')
     created_at = models.DateTimeField('登记时间', auto_now_add=True)
@@ -70,8 +153,8 @@ class AbnormalSample(models.Model):
         
         规则：
         1. 格式：{customer_code}-{序号:03d}
-        2. 序号连续，取该客户当前最大序号+1
-        3. 即使中间有删除，也能保证不重复
+        2. 删除后重新创建会优先回补空缺编号
+        3. 无空缺时取最大序号+1
         """
         if not self.customer:
             return None
@@ -81,19 +164,20 @@ class AbnormalSample(models.Model):
             customer=self.customer
         ).values_list('sample_number', flat=True)
         
-        max_seq = 0
         pattern = re.compile(rf'^{re.escape(self.customer.customer_code)}-(\d+)$')
+        existing_seqs = set()
         
         for num in existing_numbers:
             match = pattern.match(num)
             if match:
-                seq = int(match.group(1))
-                if seq > max_seq:
-                    max_seq = seq
+                existing_seqs.add(int(match.group(1)))
         
-        # 新序号为最大序号+1
-        new_seq = max_seq + 1
-        return f"{self.customer.customer_code}-{new_seq:03d}"
+        # 从 1 开始找第一个不存在的序号（回补空缺）
+        seq = 1
+        while seq in existing_seqs:
+            seq += 1
+        
+        return f"{self.customer.customer_code}-{seq:03d}"
     
     def save(self, *args, **kwargs):
         # 检查是否是新记录
@@ -155,7 +239,8 @@ class AbnormalLogFile(models.Model):
     abnormal_sample = models.ForeignKey(AbnormalSample, on_delete=models.CASCADE, 
                                          verbose_name='异常样品', related_name='log_files')
     log_type = models.CharField('日志类型', max_length=20, choices=LOG_TYPE_CHOICES)
-    file = models.FileField('日志文件', upload_to='abnormal/logs/%Y/%m/')
+    file = models.FileField('日志文件', upload_to='abnormal/logs/%Y/%m/', blank=True, null=True)
+    file_url = models.URLField('日志文件URL', max_length=500, blank=True, null=True)
     description = models.CharField('描述', max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='上传人')
     uploaded_at = models.DateTimeField('上传时间', auto_now_add=True)
@@ -164,6 +249,37 @@ class AbnormalLogFile(models.Model):
         verbose_name = '日志文件'
         verbose_name_plural = '日志文件'
         ordering = ['-uploaded_at']
+    
+    @property
+    def filename(self):
+        """文件名（不含路径），兼容模板"""
+        import os
+        if self.file_url:
+            return os.path.basename(self.file_url)
+        if self.file:
+            return os.path.basename(self.file.name)
+        return ''
+    
+    @property
+    def size(self):
+        """文件大小（字节），兼容模板"""
+        if self.file_url:
+            return 0  # OSS 文件大小暂不支持，可后续扩展
+        if self.file:
+            return self.file.size
+        return 0
+    
+    def get_download_url(self, expiration=3600):
+        """生成带签名的临时下载 URL（私有 Bucket 用）"""
+        if self.file_url:
+            from utils.oss import get_signed_url
+            # file_url 格式: https://bucket.endpoint/logs/abnormal/...
+            # 需要从 URL 中提取 OSS 路径
+            path = self.file_url.split('/', 3)[3]  # 去掉 https://bucket.endpoint/
+            return get_signed_url(path, expiration)
+        if self.file:
+            return self.file.url
+        return ''
     
     def __str__(self):
         return f"{self.abnormal_sample.sample_number} - {self.get_log_type_display()}"

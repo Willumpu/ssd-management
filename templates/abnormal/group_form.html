@@ -1,0 +1,229 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if object %}编辑异常样品组{% else %}新建异常样品组{% endif %} - SSD FAE业务管理系统{% endblock %}
+
+{% block extra_css %}
+{{ form.media }}
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto animate-slide-in">
+    <!-- 页面标题 -->
+    <div class="flex items-center gap-4 mb-6">
+        <a href="{% url 'abnormal:group_list' %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">
+            {% if object %}编辑异常样品组{% else %}新建异常样品组{% endif %}
+        </h2>
+    </div>
+
+    <!-- 表单 -->
+    <form method="post" class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        {% csrf_token %}
+        
+        <!-- 字段错误汇总 -->
+        {% if form.errors %}
+        <div class="p-4 bg-red-600/10 border-b border-red-500/30 space-y-1">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>
+                    {% if field == '__all__' %}{{ error }}{% else %}{{ field }}: {{ error }}{% endif %}
+                </p>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 基本信息 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">基本信息</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 客户 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">客户 <span class="text-red-400">*</span></label>
+                    {% if form.auto_from_test_item %}
+                    <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
+                        {% with cust=form.customer.field.queryset.first %}{{ cust.customer_code|default:"-" }}{% endwith %}
+                    </div>
+                    <input type="hidden" name="customer" value="{{ form.customer.value }}">
+                    {% else %}
+                    <select name="customer" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择客户...</option>
+                        {% for customer in form.customer.field.queryset %}
+                        <option value="{{ customer.pk }}" {% if form.customer.value == customer.pk %}selected{% endif %}>{{ customer.customer_code }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.customer.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.customer.errors.0 }}</p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                <!-- 项目 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">项目</label>
+                    {% if form.auto_from_test_item and form.project.value %}
+                    <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
+                        {% with proj=form.project.field.queryset.first %}{{ proj.project_name|default:"-" }}{% endwith %}
+                    </div>
+                    <input type="hidden" name="project" value="{{ form.project.value }}">
+                    {% else %}
+                    <select name="project"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择项目...</option>
+                        {% for project in form.project.field.queryset %}
+                        <option value="{{ project.pk }}" {% if form.project.value == project.pk %}selected{% endif %}>{{ project.project_name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+
+                <!-- 样品方案 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">样品方案</label>
+                    {% if form.auto_from_test_item and form.solution.value %}
+                    <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
+                        {% with sol=form.solution.field.queryset.first %}{{ sol.solution_number|default:"-" }}{% endwith %}
+                    </div>
+                    <input type="hidden" name="solution" value="{{ form.solution.value }}">
+                    {% else %}
+                    <select name="solution"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择方案...</option>
+                        {% for solution in form.solution.field.queryset %}
+                        <option value="{{ solution.pk }}" {% if form.solution.value == solution.pk %}selected{% endif %}>{{ solution.solution_number }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+
+                <!-- 优先级 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">优先级</label>
+                    <select name="priority" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="urgent" {% if form.priority.value == 'urgent' %}selected{% endif %} class="text-red-400">紧急</option>
+                        <option value="high" {% if form.priority.value == 'high' %}selected{% endif %} class="text-orange-400">高</option>
+                        <option value="normal" {% if form.priority.value == 'normal' or not form.priority.value %}selected{% endif %} class="text-blue-400">一般</option>
+                    </select>
+                </div>
+
+                <!-- 状态 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">状态</label>
+                    <select name="status" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="pending_analysis" {% if form.status.value == 'pending_analysis' or not form.status.value %}selected{% endif %}>待分析</option>
+                        <option value="retesting" {% if form.status.value == 'retesting' %}selected{% endif %}>复测中</option>
+                        <option value="resolved" {% if form.status.value == 'resolved' %}selected{% endif %}>已解决</option>
+                    </select>
+                </div>
+
+                <!-- 负责人 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">负责人</label>
+                    <select name="assignee" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">选择负责人...</option>
+                        {% for user in form.assignee.field.queryset %}
+                        <option value="{{ user.pk }}" {% if form.assignee.value == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 所属测试 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">所属测试</label>
+                    {% if form.auto_from_test_item and form.test_item.value %}
+                    <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400 flex justify-between items-center">
+                        {% with ti=form.test_item.field.queryset.first %}
+                        <span>{{ ti.test_number|default:"-" }} - {{ ti.get_test_content_display|default:"-" }}</span>
+                        {% endwith %}
+                        {% if request.GET.test_item %}
+                        <a href="{% url 'testing:test_detail' request.GET.test_item %}" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-external-link-alt mr-1"></i>返回测试项</a>
+                        {% endif %}
+                    </div>
+                    <input type="hidden" name="test_item" value="{{ form.test_item.value }}">
+                    {% else %}
+                    <select name="test_item" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="">{% if form.test_item.field.queryset %}选择关联测试项（可选）{% else %}暂无可选测试项{% endif %}</option>
+                        {% for test in form.test_item.field.queryset %}
+                        <option value="{{ test.pk }}" {% if form.test_item.value == test.pk or form.instance.test_item_id == test.pk %}selected{% endif %}>{{ test.test_number }} - {{ test.get_test_content_display }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if not form.test_item.field.queryset %}
+                    <p class="text-yellow-500 text-xs mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>请先创建测试项</p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                <!-- 样品数量（创建时必填，编辑时可增加） -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">样品数量 <span class="text-red-400">*</span></label>
+                    {% if object %}
+                    {{ form.total_count }}
+                    {% if form.total_count.help_text %}
+                    <p class="text-xs text-slate-500 mt-1"><i class="fas fa-info-circle mr-1"></i>{{ form.total_count.help_text }}</p>
+                    {% endif %}
+                    {% else %}
+                    <input type="number" name="total_count" value="{{ form.total_count.value|default:1 }}" min="1"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                    {% endif %}
+                    {% if form.total_count.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.total_count.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 异常概述 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">异常概述</h3>
+            <input type="text" name="abnormal_summary" value="{{ form.abnormal_summary.value|default:'' }}" maxlength="200"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500"
+                   placeholder="请简要描述异常现象，组内所有样品将继承此概述（200字以内）">
+            {% if form.abnormal_summary.errors %}
+            <p class="text-red-400 text-xs mt-1">{{ form.abnormal_summary.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <!-- 异常描述 -->
+        <div class="p-6 border-b border-slate-800">
+            <h3 class="font-semibold text-white mb-4">异常描述</h3>
+            {{ form.abnormal_description }}
+        </div>
+
+        <!-- 按钮 -->
+        <div class="p-6 flex justify-end gap-3">
+            <a href="{% url 'abnormal:group_list' %}" class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                取消
+            </a>
+            <button type="submit" class="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all shadow-lg shadow-red-600/20">
+                {% if object %}保存修改{% else %}创建组{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const customerSelect = document.querySelector('select[name="customer"]');
+        if (customerSelect) {
+            const customer = customerSelect.value;
+            if (!customer) {
+                e.preventDefault();
+                alert('请选择客户');
+                return false;
+            }
+        }
+        {% if not object %}
+        const totalCount = document.querySelector('input[name="total_count"]').value;
+        if (!totalCount || parseInt(totalCount) < 1) {
+            e.preventDefault();
+            alert('样品数量至少为1');
+            return false;
+        }
+        {% endif %}
+    });
+</script>
+{% endblock %}

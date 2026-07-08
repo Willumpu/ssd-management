@@ -2,7 +2,15 @@
 异常样品管理 Admin 配置
 """
 from django.contrib import admin
-from .models import AbnormalSample, TestRecordEntry, AbnormalLogFile, AbnormalComment, AbnormalLog
+from .models import AbnormalSample, AbnormalSampleGroup, TestRecordEntry, AbnormalLogFile, AbnormalComment, AbnormalLog
+
+
+class AbnormalSampleInline(admin.TabularInline):
+    model = AbnormalSample
+    extra = 0
+    fields = ['sample_number', 'status', 'priority', 'assignee']
+    readonly_fields = ['sample_number']
+    show_change_link = True
 
 
 class TestRecordEntryInline(admin.TabularInline):
@@ -28,9 +36,18 @@ class AbnormalLogInline(admin.TabularInline):
     can_delete = False
 
 
+@admin.register(AbnormalSampleGroup)
+class AbnormalSampleGroupAdmin(admin.ModelAdmin):
+    list_display = ['group_number', 'customer', 'status', 'priority', 'total_count', 'assignee', 'created_at']
+    list_filter = ['status', 'priority', 'created_at']
+    search_fields = ['group_number', 'customer__customer_code']
+    inlines = [AbnormalSampleInline]
+    date_hierarchy = 'created_at'
+
+
 @admin.register(AbnormalSample)
 class AbnormalSampleAdmin(admin.ModelAdmin):
-    list_display = ['sample_number', 'customer', 'status', 'priority', 'assignee', 'created_at']
+    list_display = ['sample_number', 'customer', 'status', 'priority', 'assignee', 'group', 'created_at']
     list_filter = ['status', 'priority', 'created_at']
     search_fields = ['sample_number', 'customer__customer_code', 'abnormal_description']
     inlines = [TestRecordEntryInline, AbnormalLogFileInline, AbnormalCommentInline, AbnormalLogInline]

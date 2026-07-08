@@ -12,7 +12,7 @@
         <h2 class="text-xl font-semibold text-white mb-2">确认删除此项目?</h2>
         <p class="text-slate-400 mb-2">项目编号：<span class="mono text-amber-400">{{ project.project_number }}</span></p>
         <p class="text-slate-400 mb-2">项目名称：<span class="text-white">{{ project.name }}</span></p>
-        <p class="text-sm text-slate-500 mb-8">该项目下的所有关联条目和时间线记录也将被一并删除。</p>
+        <p class="text-sm text-slate-500 mb-8">该项目下的所有关联条目也将被一并删除。</p>
 
         <form method="post" class="flex justify-center gap-4">
             {% csrf_token %}
