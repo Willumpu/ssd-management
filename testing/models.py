@@ -2,6 +2,7 @@
 测试跟踪管理模块
 """
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 import datetime
 from fae.models import User, Customer
@@ -94,7 +95,7 @@ class TestItem(models.Model):
         retesting = self.retesting_samples or 0
         counted = passed + abnormal + testing + retesting
         if counted > total:
-            raise models.ValidationError(
+            raise ValidationError(
                 f'通过数量({passed}) + 异常数量({abnormal}) + 测试中数量({testing}) + 复测中数量({retesting}) '
                 f'为 {counted}，不能超过样品总数({total})'
             )
@@ -211,7 +212,7 @@ class TestItemAbnormalAnalysis(models.Model):
     def clean(self):
         super().clean()
         if self.quantity <= 0:
-            raise models.ValidationError('数量必须大于0')
+            raise ValidationError('数量必须大于0')
         if self.test_item_id:
             total_abnormal = self.test_item.abnormal_samples_count or 0
             existing = TestItemAbnormalAnalysis.objects.filter(test_item=self.test_item)
@@ -220,7 +221,7 @@ class TestItemAbnormalAnalysis(models.Model):
             current_total = existing.aggregate(total=models.Sum('quantity'))['total'] or 0
             if current_total + self.quantity > total_abnormal:
                 remaining = max(total_abnormal - current_total, 0)
-                raise models.ValidationError(
+                raise ValidationError(
                     f'该测试项异常样品总数为 {total_abnormal}，已分析 {current_total}，还可添加 {remaining}，'
                     f'当前数量 {self.quantity} 超出限制'
                 )
