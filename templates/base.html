@@ -307,6 +307,10 @@
                     <i class="fas fa-shipping-fast w-5"></i>
                     <span class="font-medium">样品物料寄送</span>
                 </a>
+                <a href="{% url 'issue:issue_list' %}" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg {% if 'issue' in request.path %}bg-blue-600 text-white{% else %}hover:bg-slate-800{% endif %}">
+                    <i class="fas fa-ticket w-5"></i>
+                    <span class="font-medium">问题单</span>
+                </a>
             </nav>
             <div class="p-4 border-t border-slate-800 mt-4">
                 <a href="{% url 'fae:user_settings' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors">
@@ -388,6 +392,11 @@
                 <a href="{% url 'sample_shipment:inventory_overview' %}" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-all group {% if 'shipment' in request.path %}bg-slate-800{% endif %}">
                     <i class="fas fa-shipping-fast w-5 text-slate-400 group-hover:text-amber-400"></i>
                     <span class="font-medium">样品物料寄送</span>
+                </a>
+                
+                <a href="{% url 'issue:issue_list' %}" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-all group {% if 'issue' in request.path %}bg-slate-800{% endif %}">
+                    <i class="fas fa-ticket w-5 text-slate-400 group-hover:text-rose-400"></i>
+                    <span class="font-medium">问题单</span>
                 </a>
                 
             </nav>

@@ -65,6 +65,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         context['solutions'] = project.solutions.select_related('created_by').all()[:50]
         context['rd_requirements'] = project.rd_requirements.select_related('assignee').all()[:50]
         context['sample_materials'] = project.sample_materials.select_related('related_customer').all()[:50]
+        context['issues'] = project.issues.select_related('submitter', 'solution').all()[:50]
 
         # 关联数量统计
         context['related_counts'] = project.get_related_counts()
@@ -78,6 +79,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             'solution': f"/solution/create/?project={project.pk}",
             'rd_requirement': f"/rd/create/?project={project.pk}",
             'sample_material': f"/shipment/materials/create/?project={project.pk}",
+            'issue': f"/issue/create/?project={project.pk}",
         }
 
         return context

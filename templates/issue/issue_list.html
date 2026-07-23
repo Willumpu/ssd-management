@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% block title %}问题单管理 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}问题单管理{% endblock %}
+
+{% block content %}
+<div class="space-y-4 lg:space-y-6 animate-slide-in">
+    <!-- 页面标题和操作栏 -->
+    <div class="flex justify-between items-center">
+        <h2 class="text-lg lg:text-xl font-semibold text-white">问题单列表</h2>
+        <a href="{% url 'issue:issue_create' %}" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors">
+            <i class="fas fa-plus mr-1"></i>新建问题单
+        </a>
+    </div>
+
+    <!-- 筛选和搜索 -->
+    <div class="glass rounded-xl p-3 lg:p-4 border border-slate-700/50">
+        <form method="get" class="flex flex-col lg:flex-row gap-3 lg:gap-4">
+            <div class="lg:w-40">
+                <label class="block text-xs lg:text-sm text-slate-400 mb-1 lg:mb-2">状态</label>
+                <select name="status" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 lg:px-4 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">全部状态</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="lg:w-32">
+                <label class="block text-xs lg:text-sm text-slate-400 mb-1 lg:mb-2">优先级</label>
+                <select name="priority" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 lg:px-4 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">全部</option>
+                    {% for value, label in priority_choices %}
+                    <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="lg:flex-1">
+                <label class="block text-xs lg:text-sm text-slate-400 mb-1 lg:mb-2">项目</label>
+                <select name="project" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 lg:px-4 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">全部项目</option>
+                    {% for proj in projects %}
+                    <option value="{{ proj.pk }}" {% if request.GET.project == proj.pk|stringformat:"s" %}selected{% endif %}>{{ proj.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="lg:flex-[2]">
+                <label class="block text-xs lg:text-sm text-slate-400 mb-1 lg:mb-2">搜索</label>
+                <div class="relative">
+                    <input type="text" name="search" placeholder="搜索编号、项目、方案、提交人..." value="{{ request.GET.search|default:'' }}"
+                        class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+                </div>
+            </div>
+            <div class="flex gap-2 lg:items-end">
+                <button type="submit" class="flex-1 lg:flex-none px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors">
+                    <i class="fas fa-filter lg:mr-2"></i><span class="hidden lg:inline">筛选</span>
+                </button>
+                <a href="{% url 'issue:issue_list' %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-sm transition-colors">
+                    <i class="fas fa-undo"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
+                <tr>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">问题单编号</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">项目</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">方案</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">提交人</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">优先级</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">状态</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">提交时间</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-sm">
+                {% for issue in issues %}
+                <tr class="table-row-hover border-l-2 border-transparent hover:border-blue-500 cursor-pointer"
+                    onclick="window.location.href='{% url 'issue:issue_detail' issue.pk %}'">
+                    <td class="px-6 py-4 whitespace-nowrap mono text-blue-400">{{ issue.issue_number }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.project|default:'-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.solution|default:'-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.submitter.get_full_name|default:issue.submitter.username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded text-xs {{ issue.get_priority_display_class }}">{{ issue.get_priority_display }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded text-xs {{ issue.get_status_display_class }}">{{ issue.get_status_display }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-500">{{ issue.created_at|date:'Y-m-d H:i' }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
+                                <i class="fas fa-clipboard-list text-2xl text-slate-600"></i>
+                            </div>
+                            <p>暂没有问题单数据</p>
+                            <a href="{% url 'issue:issue_create' %}" class="text-blue-400 hover:text-blue-300 text-sm">
+                                <i class="fas fa-plus mr-1"></i>创建问题单
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div class="lg:hidden space-y-3">
+        {% for issue in issues %}
+        <a href="{% url 'issue:issue_detail' issue.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-blue-500/30 transition-all active:scale-98">
+            <div class="flex justify-between items-start mb-2">
+                <span class="mono text-blue-400 text-sm">{{ issue.issue_number }}</span>
+                <span class="px-2 py-0.5 rounded text-xs {{ issue.get_status_display_class }}">{{ issue.get_status_display }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                    <span class="text-slate-500 text-xs">项目</span>
+                    <p class="text-white truncate">{{ issue.project|default:'-' }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500 text-xs">方案</span>
+                    <p class="text-white truncate">{{ issue.solution|default:'-' }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500 text-xs">提交人</span>
+                    <p class="text-slate-300">{{ issue.submitter.get_full_name|default:issue.submitter.username }}</p>
+                </div>
+                <div>
+                    <span class="text-slate-500 text-xs">优先级</span>
+                    <p class="text-slate-300">{{ issue.get_priority_display }}</p>
+                </div>
+            </div>
+            <div class="mt-2 pt-2 border-t border-slate-800">
+                <span class="text-xs text-slate-500">{{ issue.created_at|date:'Y-m-d H:i' }}</span>
+            </div>
+        </a>
+        {% empty %}
+        <div class="text-center py-12 text-slate-500">
+            <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-clipboard-list text-2xl text-slate-600"></i>
+            </div>
+            <p>暂没有问题单数据</p>
+            <a href="{% url 'issue:issue_create' %}" class="text-blue-400 hover:text-blue-300 text-sm mt-2 inline-block">
+                <i class="fas fa-plus mr-1"></i>创建问题单
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 分页 -->
+    {% if is_paginated %}
+    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
+        <p class="text-xs lg:text-sm text-slate-500 text-center lg:text-left">
+            显示 {{ page_obj.start_index }} - {{ page_obj.end_index }} 条，共 {{ paginator.count }} 条
+        </p>
+        <div class="flex justify-center gap-2">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+            {% endif %}
+            {% for num in paginator.page_range %}
+                {% if page_obj.number == num %}
+                <span class="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm">{{ num }}</span>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <a href="?page={{ num }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors text-sm">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .active\:scale-98:active { transform: scale(0.98); }
+</style>
+{% endblock %}

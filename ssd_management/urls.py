@@ -25,6 +25,7 @@ urlpatterns = [
     path('rd/', include('rd_requirement.urls')),
     path('shipment/', include('sample_shipment.urls')),
     path('project/', include('project.urls')),
+    path('issue/', include('issue.urls')),
     path('tools/log-analyzer/', TemplateView.as_view(template_name='tools/log_analyzer.html'), name='log_analyzer'),
     path('api/test-items/', api_test_items, name='api_test_items'),
     path('api/abnormal-samples/', api_abnormal_samples, name='api_abnormal_samples'),

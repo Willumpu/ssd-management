@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'solution',
     'rd_requirement',
     'sample_shipment',
+    'issue',
 ]
 
 MIDDLEWARE = [

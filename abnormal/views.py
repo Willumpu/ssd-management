@@ -748,39 +748,40 @@ class TestRecordEntryCreateView(LoginRequiredMixin, CreateView):
 
 
 class AbnormalLogFileCreateView(LoginRequiredMixin, View):
-    """上传日志文件到阿里云 OSS"""
+    """上传日志文件到 NAS（通过 Django 默认存储，MEDIA_ROOT 指向 NAS）"""
     def post(self, request, pk):
         abnormal_sample = get_object_or_404(AbnormalSample, pk=pk)
         log_file = request.FILES.get('log_file')
         log_type = request.POST.get('log_type')
         description = request.POST.get('description', '')
-        
+
         if not log_file:
             messages.error(request, '请选择要上传的文件')
             return redirect('abnormal:abnormal_detail', pk=pk)
-        
+
+        if not log_type:
+            messages.error(request, '请选择日志类型')
+            return redirect('abnormal:abnormal_detail', pk=pk)
+
         try:
-            from utils.oss import upload_log_to_oss
-            import os
-            # 生成 OSS 上的文件名：abnormal/样品编号/时间戳_原文件名
-            timestamp = AbnormalLogFile._meta.model._default_manager.model
             from datetime import datetime
+            from django.core.files import File
+
+            # 生成安全文件名：时间戳_原文件名
             safe_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{log_file.name}"
-            oss_path = f"abnormal/{abnormal_sample.sample_number}/{safe_name}"
-            # 上传到 OSS
-            file_url = upload_log_to_oss(log_file, oss_path)
-            # 保存到数据库（本地 file 字段为空，只存 URL）
+            log_file.name = safe_name
+
             AbnormalLogFile.objects.create(
                 abnormal_sample=abnormal_sample,
                 log_type=log_type,
-                file_url=file_url,
+                file=log_file,
                 description=description,
                 uploaded_by=request.user
             )
             messages.success(request, '日志文件上传成功')
         except Exception as e:
             messages.error(request, f'上传失败：{str(e)}')
-        
+
         return redirect('abnormal:abnormal_detail', pk=pk)
 
 

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block title %}删除问题单 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}删除问题单{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto animate-slide-in">
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-6 border-b border-slate-800">
+            <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-exclamation-circle text-red-400"></i>
+                确认删除问题单
+            </h2>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-slate-300">确定要删除问题单 <span class="text-white font-medium mono">{{ issue.issue_number }}</span> 吗？</p>
+            <p class="text-sm text-slate-500">删除后将无法恢复，关联的操作日志也会被一并删除。</p>
+            <form method="post" class="flex justify-end gap-3">
+                {% csrf_token %}
+                <a href="{% url 'issue:issue_detail' issue.pk %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm">取消</a>
+                <button type="submit" class="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition-colors">确认删除</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

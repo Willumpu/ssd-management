@@ -25,7 +25,8 @@ DATABASES = {
 # 静态文件
 STATIC_ROOT = '/var/www/ssd_management/static/'
 STATICFILES_DIRS = []  # 生产环境不使用 STATICFILES_DIRS，避免与 STATIC_ROOT 冲突
-MEDIA_ROOT = '/var/www/ssd_management/media/'
+# 媒体文件存到 NAS 挂载目录
+MEDIA_ROOT = '/mnt/nas_abnormal_logs/media'
 
 # 安全设置
 SECURE_SSL_REDIRECT = False

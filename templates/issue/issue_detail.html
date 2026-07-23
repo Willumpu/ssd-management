@@ -1,0 +1,312 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ issue.issue_number }} - 问题单详情 - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}问题单详情{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 返回按钮和标题 -->
+    <div class="flex items-center gap-4">
+        <a href="{% url 'issue:issue_list' %}" class="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">问题单详情</h2>
+        <div class="ml-auto flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full text-xs {{ issue.get_priority_display_class }}">{{ issue.get_priority_display }}</span>
+            <span class="px-3 py-1 rounded-full text-xs {{ issue.get_status_display_class }}">{{ issue.get_status_display }}</span>
+        </div>
+    </div>
+
+    <!-- 编号卡片 -->
+    <div class="glass rounded-xl p-4 lg:p-6 border border-slate-700/50 bg-gradient-to-r from-blue-600/10 to-purple-600/10">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs lg:text-sm text-slate-400 mb-1">问题单编号</p>
+                <p class="text-lg lg:text-2xl font-bold mono text-white break-all">{{ issue.issue_number }}</p>
+            </div>
+            <div class="flex gap-2 lg:gap-3">
+                <a href="{% url 'issue:issue_update' issue.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm">
+                    <i class="fas fa-edit lg:mr-2"></i><span class="hidden lg:inline">编辑</span>
+                </a>
+                <a href="{% url 'issue:issue_delete' issue.pk %}" class="px-3 lg:px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30 transition-colors text-sm" onclick="return confirm('确定要删除此问题单吗？');">
+                    <i class="fas fa-trash-alt lg:mr-2"></i><span class="hidden lg:inline">删除</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 基本信息 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white">基本信息</h3>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+                <p class="text-xs text-slate-500 mb-1">项目</p>
+                <p class="text-sm text-white">
+                    <a href="{% url 'project:project_detail' issue.project.pk %}" class="text-blue-400 hover:text-blue-300 hover:underline">{{ issue.project.name }}</a>
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">方案</p>
+                <p class="text-sm text-white">
+                    <a href="{% url 'solution:solution_detail' issue.solution.pk %}" class="text-indigo-400 hover:text-indigo-300 hover:underline">{{ issue.solution.solution_number }}</a>
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">提交人</p>
+                <p class="text-sm text-slate-300">{{ issue.submitter.get_full_name|default:issue.submitter.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">提交时间</p>
+                <p class="text-sm text-slate-500">{{ issue.created_at|date:'Y-m-d H:i' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">优先级</p>
+                <p class="text-sm">
+                    <span class="px-2 py-0.5 rounded text-xs {{ issue.get_priority_display_class }}">{{ issue.get_priority_display }}</span>
+                </p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">状态</p>
+                <p class="text-sm">
+                    <span class="px-2 py-0.5 rounded text-xs {{ issue.get_status_display_class }}">{{ issue.get_status_display }}</span>
+                </p>
+            </div>
+            {% if issue.closed_at %}
+            <div>
+                <p class="text-xs text-slate-500 mb-1">关闭时间</p>
+                <p class="text-sm text-slate-500">{{ issue.closed_at|date:'Y-m-d H:i' }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 异常描述 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white flex items-center gap-2"><i class="fas fa-align-left text-pink-400 text-sm"></i>异常描述</h3>
+        </div>
+        <div class="p-6">
+            {% if issue.abnormal_description %}
+            <div class="bg-slate-900/50 rounded-lg p-3 lg:p-4 text-slate-300 leading-relaxed text-sm lg:text-base rich-text-content">{{ issue.abnormal_description|safe }}</div>
+            {% else %}
+            <p class="text-sm text-slate-500">暂无异常描述</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 问题解决记录 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white flex items-center gap-2"><i class="fas fa-check-circle text-emerald-400 text-sm"></i>问题解决</h3>
+            <form method="post" action="{% url 'issue:add_solution_record' issue.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs transition-colors">
+                    添加解决记录
+                </button>
+            </form>
+        </div>
+
+        <!-- 解决记录列表 -->
+        <div class="divide-y divide-slate-800">
+            {% for record in solution_records %}
+            <div class="p-4 lg:p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h4 class="text-white font-medium">解决记录 {{ forloop.counter }}</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ record.created_by.get_full_name|default:record.created_by.username }} · {{ record.created_at|date:'Y-m-d H:i' }}</p>
+                    </div>
+                    <form method="post" action="{% url 'issue:delete_solution_record' issue.pk record.pk %}" onsubmit="return confirm('确定要删除该解决记录吗？');">
+                        {% csrf_token %}
+                        <button type="submit" class="text-xs text-red-400 hover:text-red-300 transition-colors">
+                            <i class="fas fa-trash-alt mr-1"></i>删除
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 明细列表 -->
+                <div class="space-y-3 mb-4">
+                    {% for detail in record.details.all %}
+                    <div class="bg-slate-900/40 rounded-lg p-3 border border-slate-800">
+                        <div class="flex items-center gap-2 mb-2">
+                            {% if detail.detail_type == 'troubleshooting' %}
+                            <span class="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400">排查记录</span>
+                            {% elif detail.detail_type == 'abnormal_sample' %}
+                            <span class="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400">异常样品</span>
+                            {% elif detail.detail_type == 'root_cause' %}
+                            <span class="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400">根因结果</span>
+                            {% elif detail.detail_type == 'solution' %}
+                            <span class="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400">解决方案</span>
+                            {% elif detail.detail_type == 'verification' %}
+                            <span class="px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400">验证记录</span>
+                            {% endif %}
+                            <span class="text-xs text-slate-500">{{ detail.created_by.get_full_name|default:detail.created_by.username }} · {{ detail.created_at|date:'Y-m-d H:i' }}</span>
+                            <a href="{% url 'issue:edit_solution_detail' issue.pk record.pk detail.pk %}" class="ml-auto text-xs text-blue-400 hover:text-blue-300"><i class="fas fa-edit mr-1"></i>编辑</a>
+                        </div>
+                        {% if detail.content %}
+                        <div class="text-sm text-slate-300 whitespace-pre-wrap">{{ detail.content }}</div>
+                        {% endif %}
+                        {% if detail.test_item %}
+                        <p class="text-sm text-slate-300 mt-1">关联测试项：
+                            <a href="{% url 'testing:test_detail' detail.test_item.pk %}" class="text-purple-400 hover:text-purple-300 hover:underline">{{ detail.test_item.test_number }}</a>
+                        </p>
+                        {% endif %}
+                        {% if detail.abnormal_sample %}
+                        <p class="text-sm text-slate-300 mt-1">关联异常样品：
+                            <a href="{% url 'abnormal:abnormal_detail' detail.abnormal_sample.pk %}" class="text-red-400 hover:text-red-300 hover:underline">{{ detail.abnormal_sample.sample_number }}</a>
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-slate-500">该解决记录下暂无明细，请添加排查记录、异常样品等。</p>
+                    {% endfor %}
+                </div>
+
+                <!-- 明细操作按钮 -->
+                <div class="flex flex-wrap gap-2 mb-3">
+                    {% for type_value, type_label in detail_form.fields.detail_type.choices %}
+                    {% if type_value %}
+                    <button type="button" onclick="showDetailForm({{ record.pk }}, '{{ type_value }}', '{{ type_label }}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors border border-slate-700">
+                        <i class="fas fa-plus mr-1"></i>{{ type_label }}
+                    </button>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- 添加明细表单 -->
+                <div id="detail-form-{{ record.pk }}" class="hidden bg-slate-900/30 rounded-lg p-4 border border-slate-800">
+                    <form method="post" action="{% url 'issue:add_solution_detail' issue.pk record.pk %}" class="space-y-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="detail_type" id="detail-type-{{ record.pk }}" value="">
+                        <p id="detail-form-title-{{ record.pk }}" class="text-sm text-white font-medium"></p>
+                        <div id="detail-content-group-{{ record.pk }}">
+                            <label class="block text-xs text-slate-400 mb-1">内容</label>
+                            <textarea name="content" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" placeholder="请输入内容..."></textarea>
+                        </div>
+                        <div id="detail-test-item-group-{{ record.pk }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">关联测试项（选填）</label>
+                                <select name="test_item" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                                    <option value="">不关联</option>
+                                    {% for test in detail_form.test_item.field.queryset %}
+                                    <option value="{{ test.pk }}">{{ test.test_number }} - {{ test.get_test_content_display }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div id="detail-abnormal-sample-group-{{ record.pk }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">关联异常样品</label>
+                                <select name="abnormal_sample" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                                    <option value="">请选择异常样品</option>
+                                    {% for sample in detail_form.abnormal_sample.field.queryset %}
+                                    <option value="{{ sample.pk }}">{{ sample.sample_number }} - {{ sample.customer.customer_code }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" onclick="hideDetailForm({{ record.pk }})" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors">取消</button>
+                            <button type="submit" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs transition-colors">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center text-slate-500 text-sm">暂没有问题解决记录</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 状态变更 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white flex items-center gap-2"><i class="fas fa-exchange-alt text-purple-400 text-sm"></i>状态变更</h3>
+        </div>
+        <div class="p-6">
+            <form method="post" action="{% url 'issue:issue_change_status' issue.pk %}" class="flex flex-wrap items-end gap-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2">新状态</label>
+                    <select name="status" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if issue.status == value %}disabled{% endif %}>{{ label }}{% if issue.status == value %}（当前）{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="w-full md:w-auto">
+                    <label class="block text-xs text-slate-400 mb-2">备注（选填）</label>
+                    <input type="text" name="comment" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-blue-500" placeholder="状态变更原因">
+                </div>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm transition-colors">
+                    更新状态
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800">
+            <h3 class="font-semibold text-white flex items-center gap-2"><i class="fas fa-history text-slate-400 text-sm"></i>操作日志</h3>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for log in logs %}
+            <div class="p-4">
+                <div class="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3 text-sm">
+                    <span class="text-white font-medium">{{ log.action }}</span>
+                    {% if log.old_status or log.new_status %}
+                    <span class="text-xs text-slate-400">
+                        {% if log.old_status %}{{ log.get_old_status_display }}{% else %}-{% endif %}
+                        →
+                        {% if log.new_status %}{{ log.get_new_status_display }}{% else %}-{% endif %}
+                    </span>
+                    {% endif %}
+                    <span class="lg:ml-auto text-xs text-slate-500">{{ log.operator.get_full_name|default:log.operator.username }} · {{ log.created_at|date:'Y-m-d H:i' }}</span>
+                </div>
+                {% if log.comment %}
+                <p class="text-xs text-slate-400 mt-1">{{ log.comment }}</p>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="p-8 text-center text-slate-500 text-sm">暂无操作日志</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+function showDetailForm(recordId, type, label) {
+    // 隐藏所有明细表单
+    document.querySelectorAll('[id^="detail-form-"]').forEach(el => el.classList.add('hidden'));
+
+    const form = document.getElementById('detail-form-' + recordId);
+    const typeInput = document.getElementById('detail-type-' + recordId);
+    const title = document.getElementById('detail-form-title-' + recordId);
+    const contentGroup = document.getElementById('detail-content-group-' + recordId);
+    const testItemGroup = document.getElementById('detail-test-item-group-' + recordId);
+    const abnormalSampleGroup = document.getElementById('detail-abnormal-sample-group-' + recordId);
+
+    if (typeInput) typeInput.value = type;
+    if (title) title.textContent = '添加' + label;
+
+    if (type === 'abnormal_sample') {
+        if (contentGroup) contentGroup.classList.add('hidden');
+        if (testItemGroup) testItemGroup.classList.add('hidden');
+        if (abnormalSampleGroup) abnormalSampleGroup.classList.remove('hidden');
+    } else {
+        if (contentGroup) contentGroup.classList.remove('hidden');
+        if (testItemGroup) testItemGroup.classList.remove('hidden');
+        if (abnormalSampleGroup) abnormalSampleGroup.classList.add('hidden');
+    }
+
+    if (form) form.classList.remove('hidden');
+}
+
+function hideDetailForm(recordId) {
+    const form = document.getElementById('detail-form-' + recordId);
+    if (form) form.classList.add('hidden');
+}
+</script>
+{% endblock %}

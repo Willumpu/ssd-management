@@ -245,6 +245,9 @@
                     <a href="{% url 'abnormal:log_file_view' log_file.pk %}" target="_blank" class="text-blue-400 hover:text-blue-300 px-2" title="查看">
                         <i class="fas fa-eye"></i>
                     </a>
+                    <a href="{% if log_file.file %}{{ log_file.file.url }}{% else %}{{ log_file.file_url }}{% endif %}" download class="text-emerald-400 hover:text-emerald-300 px-2" title="下载">
+                        <i class="fas fa-download"></i>
+                    </a>
                     <a href="{% url 'abnormal:log_file_delete' log_file.pk %}" class="text-red-400 hover:text-red-300 px-2" title="删除" onclick="return confirm('确定删除此日志文件？')">
                         <i class="fas fa-trash"></i>
                     </a>

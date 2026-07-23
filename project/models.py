@@ -15,6 +15,17 @@ class Project(models.Model):
         ('on_hold', '已暂停'),
     ]
 
+    PHASE_CHOICES = [
+        ('import', '导入阶段'),
+        ('pilot', '试产阶段'),
+        ('mass_production', '量产阶段'),
+    ]
+
+    YIELD_TYPE_CHOICES = [
+        ('estimated', '估算良率'),
+        ('calculated', '计算良率'),
+    ]
+
     project_number = models.CharField('项目编号', max_length=20, unique=True, editable=False)
     name = models.CharField('项目名称', max_length=200)
     customer = models.ForeignKey(
@@ -22,6 +33,11 @@ class Project(models.Model):
         null=True, blank=True, related_name='projects'
     )
     status = models.CharField('项目状态', max_length=20, choices=STATUS_CHOICES, default='active')
+    phase = models.CharField('项目阶段', max_length=20, choices=PHASE_CHOICES, default='import')
+    sample_total_quantity = models.PositiveIntegerField('样品总数量', default=0, blank=True)
+    current_yield = models.DecimalField('当前良率', max_digits=5, decimal_places=2, null=True, blank=True,
+                                        help_text='单位：%')
+    yield_type = models.CharField('良率类型', max_length=20, choices=YIELD_TYPE_CHOICES, blank=True)
     description = models.TextField('项目描述', blank=True)
     created_by = models.ForeignKey(
         'fae.User', on_delete=models.CASCADE, verbose_name='创建人',
@@ -64,9 +80,19 @@ class Project(models.Model):
             'solutions': self.solutions.count(),
             'rd_requirements': self.rd_requirements.count(),
             'sample_materials': self.sample_materials.count(),
+            'issues': self.issues.count(),
         }
 
     def get_total_items(self):
         """获取关联条目总数"""
         counts = self.get_related_counts()
         return sum(counts.values())
+
+    def get_current_yield_display(self):
+        """格式化当前良率显示"""
+        if self.current_yield is None:
+            return '-'
+        suffix = ''
+        if self.yield_type:
+            suffix = f"（{self.get_yield_type_display()}）"
+        return f"{self.current_yield}%{suffix}"

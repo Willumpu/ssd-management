@@ -49,6 +49,18 @@
                 </p>
             </div>
             <div>
+                <p class="text-xs text-slate-500 mb-1">项目阶段</p>
+                <p class="text-sm text-slate-300">{{ project.get_phase_display|default:'-' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">样品总数量</p>
+                <p class="text-sm text-slate-300">{{ project.sample_total_quantity|default:'-' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 mb-1">当前良率</p>
+                <p class="text-sm text-slate-300">{{ project.get_current_yield_display }}</p>
+            </div>
+            <div>
                 <p class="text-xs text-slate-500 mb-1">关联客户</p>
                 <p class="text-sm text-slate-300">{{ project.customer.customer_code|default:'-' }}</p>
             </div>
@@ -70,7 +82,7 @@
     </div>
 
     <!-- 快捷新建操作 -->
-    <div class="grid grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <a href="{{ create_urls.fae_task }}" class="glass rounded-xl p-5 border border-slate-700/50 hover:border-blue-500/50 transition-all text-center">
             <div class="w-10 h-10 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center mx-auto mb-3">
                 <i class="fas fa-headset"></i>
@@ -98,6 +110,13 @@
             </div>
             <span class="text-sm text-slate-300">新建样品物料</span>
             <span class="block text-2xl font-bold text-white mt-1">{{ related_counts.sample_materials }}</span>
+        </a>
+        <a href="{{ create_urls.issue }}" class="glass rounded-xl p-5 border border-slate-700/50 hover:border-rose-500/50 transition-all text-center">
+            <div class="w-10 h-10 rounded-lg bg-rose-600/20 text-rose-400 flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-ticket"></i>
+            </div>
+            <span class="text-sm text-slate-300">新建问题单</span>
+            <span class="block text-2xl font-bold text-white mt-1">{{ related_counts.issues }}</span>
         </a>
     </div>
 
@@ -296,6 +315,39 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- 问题单 -->
+    {% if issues %}
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center cursor-pointer" onclick="toggleSection('issues')">
+            <h3 class="font-semibold text-white flex items-center gap-2">
+                <i class="fas fa-ticket-alt text-rose-400 text-sm"></i>
+                问题单
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-xs">{{ issues|length }}</span>
+            </h3>
+            <div class="flex items-center gap-2">
+                <a href="{{ create_urls.issue }}" class="text-xs text-rose-400 hover:text-rose-300 transition-colors" onclick="event.stopPropagation()">+ 新建</a>
+                <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform" id="icon-issues"></i>
+            </div>
+        </div>
+        <div id="section-issues" class="divide-y divide-slate-800">
+            {% for iss in issues %}
+            <a href="{% url 'issue:issue_detail' iss.pk %}" class="block p-4 hover:bg-slate-800/30 transition-colors">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-sm text-white font-medium">{{ iss.issue_number }}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">{{ iss.submitter.get_full_name|default:iss.submitter.username }} · {{ iss.created_at|date:'Y-m-d H:i' }}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded text-xs {{ iss.get_priority_display_class }}">{{ iss.get_priority_display }}</span>
+                        <span class="px-2 py-0.5 rounded text-xs {{ iss.get_status_display_class }}">{{ iss.get_status_display }}</span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
@@ -317,7 +369,7 @@
 
     // 初始化各模块折叠状态
     document.addEventListener('DOMContentLoaded', function() {
-        var sections = ['fae-tasks', 'test-items', 'abnormal-samples', 'solutions', 'rd-requirements', 'sample-materials'];
+        var sections = ['fae-tasks', 'test-items', 'abnormal-samples', 'solutions', 'rd-requirements', 'sample-materials', 'issues'];
         sections.forEach(function(id) {
             var content = document.getElementById('section-' + id);
             var icon = document.getElementById('icon-' + id);
