@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}编辑生产方案 - {{ object.project.name }} - SSD FAE业务管理系统{% endblock %}
+{% block page_title %}编辑生产方案{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto animate-slide-in">
+    <div class="flex items-center gap-4 mb-6">
+        <a href="{% url 'project:project_detail' object.project.pk %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">编辑生产方案</h2>
+    </div>
+
+    <form method="post" class="glass rounded-xl border border-slate-700/50 overflow-hidden p-6 space-y-6">
+        {% csrf_token %}
+        <div>
+            <label class="block text-sm text-slate-400 mb-2">方案名称</label>
+            {{ form.name }}
+        </div>
+        <div>
+            <label class="block text-sm text-slate-400 mb-2">良率（%）</label>
+            {{ form.yield_value }}
+        </div>
+        <div>
+            <label class="block text-sm text-slate-400 mb-2">良率类型</label>
+            {{ form.yield_type }}
+        </div>
+        <div>
+            <label class="block text-sm text-slate-400 mb-2">生产数量（颗）</label>
+            {{ form.production_quantity }}
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
+            <a href="{% url 'project:project_detail' object.project.pk %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm">取消</a>
+            <button type="submit" class="px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm transition-colors">保存</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

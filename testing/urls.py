@@ -26,6 +26,7 @@ urlpatterns = [
     path('sankey/data/<int:fae_task_id>/', views.SankeyDataView.as_view(), name='sankey_data'),
     path('sankey/nodes/create/<int:fae_task_id>/', views.SankeyNodeCreateView.as_view(), name='sankey_node_create'),
     path('sankey/nodes/<int:node_id>/split/', views.SankeyNodeSplitView.as_view(), name='sankey_node_split'),
+    path('sankey/nodes/<int:node_id>/update/', views.SankeyNodeUpdateView.as_view(), name='sankey_node_update'),
     path('sankey/nodes/<int:node_id>/delete/', views.SankeyNodeDeleteView.as_view(), name='sankey_node_delete'),
     path('sankey/nodes/merge/', views.SankeyNodesMergeView.as_view(), name='sankey_nodes_merge'),
     # 异常样品关联

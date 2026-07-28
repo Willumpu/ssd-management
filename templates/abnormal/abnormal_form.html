@@ -80,8 +80,9 @@
 
                 <!-- 分析负责人 -->
                 <div>
-                    <label class="block text-sm text-slate-400 mb-2">分析负责人</label>
-                    <select name="assignee" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                    <label class="block text-sm text-slate-400 mb-2">分析负责人 <span class="text-red-400">*</span></label>
+                    <select name="assignee" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
                         <option value="">选择负责人...</option>
                         {% for user in form.assignee.field.queryset %}
                         <option value="{{ user.pk }}" {% if form.assignee.value == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>

@@ -80,6 +80,7 @@ class TestItemForm(forms.ModelForm):
             if linked_ids:
                 queryset = (queryset | AbnormalSample.objects.filter(pk__in=linked_ids)).distinct()
         self.fields['abnormal_samples'].queryset = queryset
+        self.fields['solution'].required = True
         self._param_defs = list(_add_dynamic_param_fields(self))
 
 
@@ -118,6 +119,7 @@ class TestItemCreateForm(forms.ModelForm):
         # 如果从 FAE 任务跳转过来，自动填充客户
         if self.initial.get('customer'):
             self.fields['customer'].initial = self.initial.get('customer')
+        self.fields['solution'].required = True
         self._param_defs = list(_add_dynamic_param_fields(self))
 
 

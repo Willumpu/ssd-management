@@ -51,7 +51,7 @@ class IssueSolutionRecordForm(forms.ModelForm):
 class IssueSolutionDetailForm(forms.ModelForm):
     class Meta:
         model = IssueSolutionDetail
-        fields = ['detail_type', 'content', 'test_item', 'abnormal_sample']
+        fields = ['detail_type', 'content', 'test_items']
         widgets = {
             'detail_type': forms.HiddenInput(),
             'content': forms.Textarea(attrs={
@@ -59,30 +59,22 @@ class IssueSolutionDetailForm(forms.ModelForm):
                 'class': 'w-full rounded-lg border border-slate-600 bg-slate-800/70 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500',
                 'placeholder': '请输入内容...',
             }),
-            'test_item': forms.Select(attrs={
-                'class': 'w-full rounded-lg border border-slate-600 bg-slate-800/70 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500'
-            }),
-            'abnormal_sample': forms.Select(attrs={
+            'test_items': forms.SelectMultiple(attrs={
                 'class': 'w-full rounded-lg border border-slate-600 bg-slate-800/70 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500'
             }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['test_item'].required = False
-        self.fields['abnormal_sample'].required = False
         self.fields['content'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
         detail_type = cleaned_data.get('detail_type')
         content = cleaned_data.get('content', '') or ''
-        abnormal_sample = cleaned_data.get('abnormal_sample')
 
         if detail_type in ['troubleshooting', 'root_cause', 'solution', 'verification']:
             if not content.strip():
                 self.add_error('content', f'{self.instance.get_detail_type_display() if self.instance.pk else "该类型"}必须填写内容')
-        elif detail_type == 'abnormal_sample' and not abnormal_sample:
-            self.add_error('abnormal_sample', '请选择关联异常样品')
 
         return cleaned_data

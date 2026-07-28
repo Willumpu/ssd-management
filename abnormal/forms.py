@@ -32,7 +32,7 @@ class AbnormalSampleGroupForm(forms.ModelForm):
         from project.models import Project
         
         self.fields['assignee'].queryset = User.objects.filter(role__in=['fae', 'fae_leader'])
-        self.fields['assignee'].required = False
+        self.fields['assignee'].required = True
         self.fields['customer'].queryset = Customer.objects.all().order_by('customer_code')
         self.fields['solution'].queryset = Solution.objects.all().order_by('-created_at')
         self.fields['solution'].required = False
@@ -81,6 +81,11 @@ class AbnormalSampleForm(forms.ModelForm):
         self.fields['test_item'].queryset = test_items
         self.fields['test_item'].required = False
         self.fields['test_item'].empty_label = "请选择关联测试项（可选）"
+        
+        # 限制负责人可选范围
+        from fae.models import User
+        self.fields['assignee'].queryset = User.objects.filter(role__in=['fae', 'fae_leader'])
+        self.fields['assignee'].required = True
 
 
 class AbnormalCommentForm(forms.ModelForm):

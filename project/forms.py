@@ -1,5 +1,5 @@
 from django import forms
-from .models import Project
+from .models import Project, ProductionPlan
 from fae.models import Customer
 
 
@@ -7,7 +7,7 @@ class ProjectForm(forms.ModelForm):
     """项目表单"""
     class Meta:
         model = Project
-        fields = ['name', 'customer', 'status', 'phase', 'sample_total_quantity', 'current_yield', 'yield_type', 'description']
+        fields = ['name', 'customer', 'status', 'phase', 'sample_total_quantity', 'description']
         widgets = {
             'name': forms.TextInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '项目名称'}
@@ -24,12 +24,7 @@ class ProjectForm(forms.ModelForm):
             'sample_total_quantity': forms.NumberInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0}
             ),
-            'current_yield': forms.NumberInput(
-                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0, 'max': 100, 'step': '0.01'}
-            ),
-            'yield_type': forms.Select(
-                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full'}
-            ),
+
             'description': forms.Textarea(
                 attrs={'rows': 4, 'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '项目描述（可选）'}
             ),
@@ -38,4 +33,25 @@ class ProjectForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['customer'].queryset = Customer.objects.all().order_by('customer_code')
-        self.fields['customer'].required = False
+        self.fields['customer'].required = True
+
+
+class ProductionPlanForm(forms.ModelForm):
+    """生产方案表单"""
+    class Meta:
+        model = ProductionPlan
+        fields = ['name', 'yield_value', 'yield_type', 'production_quantity']
+        widgets = {
+            'name': forms.TextInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '方案名称'}
+            ),
+            'yield_value': forms.NumberInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0, 'max': 100, 'step': '0.01'}
+            ),
+            'yield_type': forms.Select(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full'}
+            ),
+            'production_quantity': forms.NumberInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0}
+            ),
+        }

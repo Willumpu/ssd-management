@@ -5,7 +5,7 @@ from .models import Issue, IssueSolutionRecord, IssueSolutionDetail, IssueLog
 class IssueSolutionDetailInline(admin.TabularInline):
     model = IssueSolutionDetail
     extra = 0
-    fields = ('detail_type', 'content', 'test_item', 'abnormal_sample', 'created_by', 'created_at')
+    fields = ('detail_type', 'content', 'test_items', 'created_by', 'created_at')
     readonly_fields = ('created_at',)
 
 

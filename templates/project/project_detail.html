@@ -57,10 +57,6 @@
                 <p class="text-sm text-slate-300">{{ project.sample_total_quantity|default:'-' }}</p>
             </div>
             <div>
-                <p class="text-xs text-slate-500 mb-1">当前良率</p>
-                <p class="text-sm text-slate-300">{{ project.get_current_yield_display }}</p>
-            </div>
-            <div>
                 <p class="text-xs text-slate-500 mb-1">关联客户</p>
                 <p class="text-sm text-slate-300">{{ project.customer.customer_code|default:'-' }}</p>
             </div>
@@ -80,6 +76,71 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- 生产方案 -->
+    <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+        <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+            <h3 class="font-semibold text-white">生产方案</h3>
+            <button type="button" onclick="togglePlanForm()" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs transition-colors">
+                <i class="fas fa-plus mr-1"></i>添加生产方案
+            </button>
+        </div>
+        <div id="plan-add-form" class="hidden p-4 border-b border-slate-800 bg-slate-900/30">
+            <form method="post" action="{% url 'project:production_plan_add' project.pk %}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">方案名称</label>
+                    {{ production_plan_form.name }}
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">良率（%）</label>
+                    {{ production_plan_form.yield_value }}
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">良率类型</label>
+                    {{ production_plan_form.yield_type }}
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">生产数量（颗）</label>
+                    {{ production_plan_form.production_quantity }}
+                </div>
+                <div class="md:col-span-4 flex justify-end gap-2">
+                    <button type="button" onclick="togglePlanForm()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors">取消</button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs transition-colors">保存</button>
+                </div>
+            </form>
+        </div>
+        <div class="divide-y divide-slate-800">
+            {% for plan in production_plans %}
+            <div class="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-800/30 transition-colors">
+                <div>
+                    <p class="text-sm text-white">{{ plan.name }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ plan.get_yield_display }} · 生产数量：{{ plan.get_quantity_display }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{% url 'project:production_plan_update' project.pk plan.pk %}" class="text-xs text-blue-400 hover:text-blue-300 px-2">
+                        <i class="fas fa-edit"></i> 编辑
+                    </a>
+                    <form method="post" action="{% url 'project:production_plan_delete' project.pk plan.pk %}" onsubmit="return confirm('确定删除该生产方案吗？');" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center text-slate-500 text-sm">暂无生产方案</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+    function togglePlanForm() {
+        const form = document.getElementById('plan-add-form');
+        if (form) form.classList.toggle('hidden');
+    }
+    </script>
 
     <!-- 快捷新建操作 -->
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">

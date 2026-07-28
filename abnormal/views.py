@@ -11,6 +11,7 @@ from django.db import models
 from django import forms
 import os
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.http import JsonResponse, HttpResponse
 from .models import AbnormalSample, AbnormalSampleGroup, TestRecordEntry, AbnormalLogFile, AbnormalComment, AbnormalLog
 from .forms import AbnormalCommentForm, AbnormalSampleForm, AbnormalSampleGroupForm
@@ -91,6 +92,24 @@ class AbnormalSampleDetailView(LoginRequiredMixin, DetailView):
         context['comments'] = self.object.comments.select_related('author')
         context['logs'] = self.object.logs.select_related('operator')
         context['comment_form'] = AbnormalCommentForm()
+
+        # 按 folder_name 分组，并生成显示用的格式化文件夹名
+        from itertools import groupby
+        sample = self.object
+        log_file_groups = []
+        for folder_name, items in groupby(self.object.log_files.all(), key=lambda x: x.folder_name):
+            items = list(items)
+            display_name = folder_name
+            if folder_name:
+                prefix = f"{sample.sample_number}_{items[0].log_type}_"
+                if not folder_name.startswith(prefix):
+                    display_name = prefix + folder_name
+            log_file_groups.append({
+                'folder_name': folder_name,
+                'display_name': display_name,
+                'files': items,
+            })
+        context['log_file_groups'] = log_file_groups
         return context
 
 
@@ -127,6 +146,9 @@ class AbnormalSampleCreateView(LoginRequiredMixin, CreateView):
                     form.fields['solution'].initial = test_item.solution
                 # 自动填充客户
                 form.fields['customer'].initial = test_item.customer
+                # 自动填充负责人为测试项跟踪人
+                if test_item.tracker:
+                    form.fields['assignee'].initial = test_item.tracker
             except TestItem.DoesNotExist:
                 pass
         
@@ -141,6 +163,9 @@ class AbnormalSampleCreateView(LoginRequiredMixin, CreateView):
                     if node.test_item.solution:
                         form.fields['solution'].initial = node.test_item.solution
                     form.fields['customer'].initial = node.test_item.customer
+                    # 自动填充负责人为测试项跟踪人
+                    if node.test_item.tracker:
+                        form.fields['assignee'].initial = node.test_item.tracker
                 # 子类节点/异常分类节点：自动将分类原因预设为异常概述
                 if node.node_type in ('subcategory', 'abnormal_category') and node.category_reason:
                     form.initial['abnormal_summary'] = node.category_reason
@@ -286,6 +311,10 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
                 from testing.models import TestItem as TestItemModel
                 form.fields['test_item'].queryset = TestItemModel.objects.filter(pk=test_item.pk)
                 form.initial['test_item'] = test_item.pk
+                # 自动填充负责人为测试项跟踪人
+                if test_item.tracker:
+                    form.fields['assignee'].queryset = form.fields['assignee'].queryset.filter(pk=test_item.tracker.pk)
+                    form.initial['assignee'] = test_item.tracker.pk
                 form.auto_from_test_item = True
             except TestItem.DoesNotExist:
                 pass
@@ -319,6 +348,10 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
                 if target_node.test_item:
                     form.fields['test_item'].queryset = TestItem.objects.filter(pk=target_node.test_item.pk)
                     form.initial['test_item'] = target_node.test_item.pk
+                    # 自动填充负责人为测试项跟踪人
+                    if target_node.test_item.tracker:
+                        form.fields['assignee'].queryset = form.fields['assignee'].queryset.filter(pk=target_node.test_item.tracker.pk)
+                        form.initial['assignee'] = target_node.test_item.tracker.pk
                 # 自动填充数量（子类节点的样品数量）
                 total_count = self.request.GET.get('total_count')
                 if total_count:
@@ -405,6 +438,7 @@ class AbnormalSampleGroupDetailView(LoginRequiredMixin, DetailView):
         context['samples'] = self.object.samples.select_related('assignee').all()
         from fae.models import User
         context['assignee_choices'] = User.objects.filter(role__in=['fae', 'fae_leader']).order_by('username')
+        context['log_choices'] = AbnormalSample.LOG_CHOICES
         return context
 
 
@@ -579,6 +613,56 @@ class AbnormalSampleGroupBulkEditView(LoginRequiredMixin, View):
         return redirect('abnormal:group_detail', pk=pk)
 
 
+class AbnormalSampleGroupBatchUploadLogView(LoginRequiredMixin, View):
+    """批量上传日志文件到异常样品组，拖动时通过方向选择每个节点的日志类型"""
+    def post(self, request, pk):
+        group = get_object_or_404(AbnormalSampleGroup, pk=pk)
+        log_files = request.FILES.getlist('log_files')
+
+        if not log_files:
+            messages.error(request, '请选择要上传的日志文件')
+            return redirect('abnormal:group_detail', pk=pk)
+
+        samples = {str(s.pk): s for s in group.samples.all()}
+        matched_count = 0
+        skipped_count = 0
+
+        for index, log_file in enumerate(log_files):
+            sample_pk = request.POST.get(f'sample_for_{index}')
+            file_log_type = request.POST.get(f'log_type_for_{index}')
+            folder_name = request.POST.get(f'folder_for_{index}', '')
+            if not sample_pk or not file_log_type:
+                skipped_count += 1
+                continue
+            sample = samples.get(sample_pk)
+            if not sample:
+                skipped_count += 1
+                continue
+
+            # 生成规范文件名：样品编号_日志类型_原文件名
+            base_name, ext = os.path.splitext(log_file.name)
+            safe_name = f"{sample.sample_number}_{file_log_type}_{base_name}{ext}"
+
+            try:
+                AbnormalLogFile.objects.create(
+                    abnormal_sample=sample,
+                    log_type=file_log_type,
+                    folder_name=folder_name,
+                    file=ContentFile(log_file.read(), name=safe_name),
+                    uploaded_by=request.user
+                )
+                matched_count += 1
+            except Exception as e:
+                messages.error(request, f'文件 {log_file.name} 上传失败：{str(e)}')
+
+        if matched_count:
+            messages.success(request, f'成功上传 {matched_count} 个日志文件')
+        if skipped_count:
+            messages.warning(request, f'{skipped_count} 个文件未匹配样品或日志类型，已跳过')
+
+        return redirect('abnormal:group_detail', pk=pk)
+
+
 class AbnormalSampleUpdateView(LoginRequiredMixin, UpdateView):
     """更新异常样品记录"""
     model = AbnormalSample
@@ -748,27 +832,63 @@ class TestRecordEntryCreateView(LoginRequiredMixin, CreateView):
 
 
 class AbnormalLogFileCreateView(LoginRequiredMixin, View):
-    """上传日志文件到 NAS（通过 Django 默认存储，MEDIA_ROOT 指向 NAS）"""
+    """上传日志文件/文件夹到 NAS（通过 Django 默认存储，MEDIA_ROOT 指向 NAS）"""
     def post(self, request, pk):
         abnormal_sample = get_object_or_404(AbnormalSample, pk=pk)
-        log_file = request.FILES.get('log_file')
         log_type = request.POST.get('log_type')
         description = request.POST.get('description', '')
-
-        if not log_file:
-            messages.error(request, '请选择要上传的文件')
-            return redirect('abnormal:abnormal_detail', pk=pk)
 
         if not log_type:
             messages.error(request, '请选择日志类型')
             return redirect('abnormal:abnormal_detail', pk=pk)
 
-        try:
-            from datetime import datetime
-            from django.core.files import File
+        # rdt_all_flush 类型上传整个文件夹
+        if log_type == 'rdt_all_flush':
+            log_files = request.FILES.getlist('log_files')
+            if not log_files:
+                messages.error(request, '请选择要上传的文件夹')
+                return redirect('abnormal:abnormal_detail', pk=pk)
 
-            # 生成安全文件名：时间戳_原文件名
-            safe_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{log_file.name}"
+            folder_name = ''
+            first_path = getattr(log_files[0], 'webkitRelativePath', None) or log_files[0].name
+            parts = first_path.split('/')
+            if len(parts) > 1:
+                folder_name = parts[0]
+            if not folder_name:
+                folder_name = 'folder'
+
+            solution_name = abnormal_sample.solution.solution_number if abnormal_sample.solution else 'no-solution'
+
+            created = 0
+            for log_file in log_files:
+                try:
+                    base_name, ext = os.path.splitext(log_file.name)
+                    safe_name = f"{abnormal_sample.sample_number}_{log_type}_{base_name}{ext}"
+                    AbnormalLogFile.objects.create(
+                        abnormal_sample=abnormal_sample,
+                        log_type=log_type,
+                        folder_name=folder_name,
+                        file=ContentFile(log_file.read(), name=safe_name),
+                        description=description,
+                        uploaded_by=request.user
+                    )
+                    created += 1
+                except Exception as e:
+                    messages.error(request, f'文件 {log_file.name} 上传失败：{str(e)}')
+            if created:
+                messages.success(request, f'成功上传 {created} 个日志文件')
+            return redirect('abnormal:abnormal_detail', pk=pk)
+
+        # 其他类型上传单个文件
+        log_file = request.FILES.get('log_file')
+        if not log_file:
+            messages.error(request, '请选择要上传的文件')
+            return redirect('abnormal:abnormal_detail', pk=pk)
+
+        try:
+            # 生成规范文件名：样品编号_日志类型_原文件名
+            base_name, ext = os.path.splitext(log_file.name)
+            safe_name = f"{abnormal_sample.sample_number}_{log_type}_{base_name}{ext}"
             log_file.name = safe_name
 
             AbnormalLogFile.objects.create(

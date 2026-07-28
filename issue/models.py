@@ -115,7 +115,6 @@ class IssueSolutionDetail(models.Model):
     """问题解决记录明细"""
     DETAIL_TYPE_CHOICES = [
         ('troubleshooting', '排查记录'),
-        ('abnormal_sample', '异常样品'),
         ('root_cause', '根因结果'),
         ('solution', '解决方案'),
         ('verification', '验证记录'),
@@ -128,12 +127,16 @@ class IssueSolutionDetail(models.Model):
     detail_type = models.CharField('明细类型', max_length=20, choices=DETAIL_TYPE_CHOICES)
     content = models.TextField('内容', blank=True)
     test_item = models.ForeignKey(
-        'testing.TestItem', on_delete=models.SET_NULL, verbose_name='关联测试项',
-        null=True, blank=True, related_name='solution_details'
+        'testing.TestItem', on_delete=models.SET_NULL, verbose_name='关联测试项（旧）',
+        null=True, blank=True, related_name='solution_details_legacy'
+    )
+    test_items = models.ManyToManyField(
+        'testing.TestItem', verbose_name='关联测试项',
+        blank=True, related_name='solution_details'
     )
     abnormal_sample = models.ForeignKey(
-        'abnormal.AbnormalSample', on_delete=models.SET_NULL, verbose_name='关联异常样品',
-        null=True, blank=True, related_name='solution_details'
+        'abnormal.AbnormalSample', on_delete=models.SET_NULL, verbose_name='关联异常样品（旧）',
+        null=True, blank=True, related_name='solution_details_legacy'
     )
     created_by = models.ForeignKey('fae.User', on_delete=models.CASCADE, verbose_name='记录人')
     created_at = models.DateTimeField('记录时间', auto_now_add=True)
@@ -151,8 +154,6 @@ class IssueSolutionDetail(models.Model):
         if self.detail_type in ['troubleshooting', 'root_cause', 'solution', 'verification']:
             if not self.content.strip():
                 raise ValidationError(f'{self.get_detail_type_display()}必须填写内容')
-        if self.detail_type == 'abnormal_sample' and not self.abnormal_sample:
-            raise ValidationError('异常样品必须选择关联异常样品')
 
 
 class IssueLog(models.Model):

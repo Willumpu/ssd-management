@@ -24,6 +24,14 @@
             {% if request.GET.source_test %}
             <input type="hidden" name="source_test" value="{{ request.GET.source_test }}">
             <input type="hidden" name="branch_type" value="{{ request.GET.branch_type }}">
+            {% endif %}
+            {% if request.GET.source_sankey_node_id or request.GET.sankey_node %}
+            <input type="hidden" name="source_sankey_node_id" value="{{ request.GET.source_sankey_node_id|default:request.GET.sankey_node }}">
+            {% endif %}
+            {% if request.GET.fae_task %}
+            <input type="hidden" name="fae_task" value="{{ request.GET.fae_task }}">
+            {% endif %}
+            {% if request.GET.source_test %}
             <div class="rounded-lg bg-blue-600/10 border border-blue-500/30 p-4 mb-4">
                 <div class="flex items-center gap-2 text-blue-400 text-sm mb-1">
                     <i class="fas fa-project-diagram"></i>
@@ -77,10 +85,10 @@
 
                 <!-- 测试方案 -->
                 <div>
-                    <label class="block text-sm text-slate-400 mb-2">测试方案</label>
-                    <select name="solution"
+                    <label class="block text-sm text-slate-400 mb-2">测试方案 <span class="text-red-500">*</span></label>
+                    <select name="solution" required
                             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-                        <option value="">请选择（可选）</option>
+                        <option value="">请选择测试方案</option>
                         {% for solution in form.solution.field.queryset %}
                         <option value="{{ solution.pk }}" {% if form.solution.value == solution.pk %}selected{% endif %}>
                             {{ solution.solution_number }}

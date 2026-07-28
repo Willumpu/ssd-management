@@ -1,14 +1,14 @@
 """
 项目管理视图
 """
-from django.shortcuts import render, get_object_or_404
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
+from django.shortcuts import render, get_object_or_404, redirect
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.urls import reverse_lazy
 from django.db import models
-from .models import Project
-from .forms import ProjectForm
+from .models import Project, ProductionPlan
+from .forms import ProjectForm, ProductionPlanForm
 
 
 class ProjectListView(LoginRequiredMixin, ListView):
@@ -66,6 +66,8 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         context['rd_requirements'] = project.rd_requirements.select_related('assignee').all()[:50]
         context['sample_materials'] = project.sample_materials.select_related('related_customer').all()[:50]
         context['issues'] = project.issues.select_related('submitter', 'solution').all()[:50]
+        context['production_plans'] = project.production_plans.all()
+        context['production_plan_form'] = ProductionPlanForm()
 
         # 关联数量统计
         context['related_counts'] = project.get_related_counts()
@@ -124,3 +126,49 @@ class ProjectDeleteView(LoginRequiredMixin, DeleteView):
         project = self.get_object()
         messages.success(request, f'项目 {project.project_number} 已删除')
         return super().delete(request, *args, **kwargs)
+
+
+class ProductionPlanCreateView(LoginRequiredMixin, View):
+    """为项目添加生产方案"""
+    def post(self, request, pk):
+        project = get_object_or_404(Project, pk=pk)
+        form = ProductionPlanForm(request.POST)
+        if form.is_valid():
+            plan = form.save(commit=False)
+            plan.project = project
+            plan.save()
+            messages.success(request, f'生产方案 {plan.name} 添加成功')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, error)
+        return redirect('project:project_detail', pk=pk)
+
+
+class ProductionPlanUpdateView(LoginRequiredMixin, UpdateView):
+    """编辑生产方案"""
+    model = ProductionPlan
+    form_class = ProductionPlanForm
+    template_name = 'project/productionplan_form.html'
+    pk_url_kwarg = 'plan_pk'
+
+    def get_object(self, queryset=None):
+        project = get_object_or_404(Project, pk=self.kwargs['pk'])
+        return get_object_or_404(ProductionPlan, pk=self.kwargs['plan_pk'], project=project)
+
+    def get_success_url(self):
+        return reverse_lazy('project:project_detail', kwargs={'pk': self.kwargs['pk']})
+
+    def form_valid(self, form):
+        messages.success(self.request, f'生产方案 {self.object.name} 更新成功')
+        return super().form_valid(form)
+
+
+class ProductionPlanDeleteView(LoginRequiredMixin, View):
+    """删除生产方案"""
+    def post(self, request, pk, plan_pk):
+        project = get_object_or_404(Project, pk=pk)
+        plan = get_object_or_404(ProductionPlan, pk=plan_pk, project=project)
+        plan.delete()
+        messages.success(request, '生产方案已删除')
+        return redirect('project:project_detail', pk=pk)

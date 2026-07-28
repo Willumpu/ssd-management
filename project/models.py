@@ -21,11 +21,6 @@ class Project(models.Model):
         ('mass_production', '量产阶段'),
     ]
 
-    YIELD_TYPE_CHOICES = [
-        ('estimated', '估算良率'),
-        ('calculated', '计算良率'),
-    ]
-
     project_number = models.CharField('项目编号', max_length=20, unique=True, editable=False)
     name = models.CharField('项目名称', max_length=200)
     customer = models.ForeignKey(
@@ -35,9 +30,6 @@ class Project(models.Model):
     status = models.CharField('项目状态', max_length=20, choices=STATUS_CHOICES, default='active')
     phase = models.CharField('项目阶段', max_length=20, choices=PHASE_CHOICES, default='import')
     sample_total_quantity = models.PositiveIntegerField('样品总数量', default=0, blank=True)
-    current_yield = models.DecimalField('当前良率', max_digits=5, decimal_places=2, null=True, blank=True,
-                                        help_text='单位：%')
-    yield_type = models.CharField('良率类型', max_length=20, choices=YIELD_TYPE_CHOICES, blank=True)
     description = models.TextField('项目描述', blank=True)
     created_by = models.ForeignKey(
         'fae.User', on_delete=models.CASCADE, verbose_name='创建人',
@@ -88,11 +80,52 @@ class Project(models.Model):
         counts = self.get_related_counts()
         return sum(counts.values())
 
-    def get_current_yield_display(self):
-        """格式化当前良率显示"""
-        if self.current_yield is None:
+
+class ProductionPlan(models.Model):
+    """项目生产方案"""
+    YIELD_TYPE_CHOICES = [
+        ('estimated', '估算良率'),
+        ('calculated', '计算良率'),
+    ]
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, verbose_name='所属项目',
+        related_name='production_plans'
+    )
+    name = models.CharField('方案名称', max_length=200)
+    yield_value = models.DecimalField(
+        '良率', max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text='单位：%'
+    )
+    yield_type = models.CharField(
+        '良率类型', max_length=20, choices=YIELD_TYPE_CHOICES, blank=True
+    )
+    production_quantity = models.PositiveIntegerField(
+        '生产数量', default=0, blank=True,
+        help_text='单位：颗'
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        verbose_name = '生产方案'
+        verbose_name_plural = '生产方案'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.project.project_number} - {self.name}"
+
+    def get_yield_display(self):
+        """格式化良率显示"""
+        if self.yield_value is None:
             return '-'
         suffix = ''
         if self.yield_type:
             suffix = f"（{self.get_yield_type_display()}）"
-        return f"{self.current_yield}%{suffix}"
+        return f"{self.yield_value}%{suffix}"
+
+    def get_quantity_display(self):
+        """格式化生产数量显示"""
+        if self.production_quantity is None or self.production_quantity == 0:
+            return '-'
+        return f"{self.production_quantity} 颗"

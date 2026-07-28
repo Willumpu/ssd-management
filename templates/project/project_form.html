@@ -27,8 +27,11 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm text-slate-400 mb-2">关联客户</label>
+                    <label class="block text-sm text-slate-400 mb-2">关联客户 <span class="text-red-400">*</span></label>
                     {{ form.customer }}
+                    {% if form.customer.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.customer.errors.0 }}</p>
+                    {% endif %}
                 </div>
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">项目状态</label>
@@ -41,14 +44,6 @@
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">样品总数量</label>
                     {{ form.sample_total_quantity }}
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">当前良率（%）</label>
-                    {{ form.current_yield }}
-                </div>
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">良率类型</label>
-                    {{ form.yield_type }}
                 </div>
             </div>
             <div>

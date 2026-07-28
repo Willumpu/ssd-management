@@ -212,13 +212,15 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
             form.initial['project'] = int(project_id)
             # project 字段在模板中根据 request.GET.project 条件隐藏/显示
         
-        # 如果从 FAE 任务跳转过来，自动填充客户
+        # 如果从 FAE 任务跳转过来，自动填充客户和负责人
         fae_task_id = self.request.GET.get('fae_task')
         if fae_task_id:
             from fae.models import FAETask
             try:
                 fae_task = FAETask.objects.get(pk=fae_task_id)
                 form.fields['customer'].initial = fae_task.customer
+                if fae_task.assignee:
+                    form.fields['tracker'].initial = fae_task.assignee
             except FAETask.DoesNotExist:
                 pass
         
@@ -249,6 +251,28 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
         return form
     
     def form_valid(self, form):
+        # 额外校验：从桑基图源节点创建时，样品总数不能超过源节点数量
+        fae_task_id = self.request.GET.get('fae_task') or self.request.POST.get('fae_task')
+        source_sankey_node_id = (
+            self.request.GET.get('source_sankey_node_id') or
+            self.request.GET.get('sankey_node') or
+            self.request.POST.get('source_sankey_node_id')
+        )
+        if fae_task_id and source_sankey_node_id:
+            try:
+                from fae.models import FAETask
+                fae_task = FAETask.objects.get(pk=fae_task_id)
+                source_node = SankeyNode.objects.get(pk=source_sankey_node_id, fae_task=fae_task)
+                total = form.cleaned_data.get('total_samples') or 0
+                if total > source_node.quantity:
+                    form.add_error(
+                        'total_samples',
+                        f'样品总数不能超过来源节点数量（{source_node.quantity}片）'
+                    )
+                    return self.form_invalid(form)
+            except (FAETask.DoesNotExist, SankeyNode.DoesNotExist):
+                pass
+        
         form.instance.created_by = self.request.user
         form.instance.status = 'not_started'
         response = super().form_valid(form)
@@ -301,6 +325,17 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
                 from fae.models import FAETask
                 fae_task = FAETask.objects.get(pk=fae_task_id)
                 source_node = SankeyNode.objects.get(pk=source_sankey_node_id, fae_task=fae_task)
+                # 记录桑基图源节点，后续同步以此为依据
+                self.object.source_sankey_node = source_node
+                self.object.save(update_fields=['source_sankey_node'])
+                import logging
+                create_logger = logging.getLogger(__name__)
+                create_logger.warning(
+                    f'[TestItemCreateView] set source_sankey_node '
+                    f'test={self.object.test_number} node_id={source_node.id} '
+                    f'node_type={source_node.node_type}'
+                )
+                
                 if source_node.node_type in ('merged', 'subcategory'):
                     # 合流/子分类节点本身作为初始节点，直接关联测试项
                     source_node.test_item = self.object
@@ -334,6 +369,14 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
                     messages.success(self.request, f'已自动关联 {linked} 个异常样品')
             except (SankeyNode.DoesNotExist, FAETask.DoesNotExist):
                 pass
+        
+        # 同步桑基图节点和流（创建时若已填写 pass/fail 数量，立即生成对应节点）
+        try:
+            sync_test_item_to_sankey(self.object)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'创建测试项后同步桑基图失败: {e}', exc_info=True)
         
         # 记录项目时间线（如果从 FAE 任务跳转并继承了项目）
         if self.object.project:
@@ -381,18 +424,56 @@ def sync_test_item_to_sankey(test_item):
         # 确定源节点
         source_node = None
         
-        # 1. 检查是否有 merged/subcategory 节点直接关联到该测试项
-        merged_source = SankeyNode.objects.filter(
+        import logging
+        sankey_logger = logging.getLogger(__name__)
+        sankey_logger.warning(
+            f'[sync_test_item_to_sankey] start '
+            f'test={test_item.test_number} '
+            f'source_sankey_node_id={test_item.source_sankey_node_id} '
+            f'sources={[s.pk for s in sources]} branch_type={test_item.branch_type}'
+        )
+        
+        # 0. 如果测试项记录了来源桑基图节点（子分类/异常分类/合流），直接使用该节点作为源
+        if test_item.source_sankey_node and test_item.source_sankey_node.fae_task_id == fae_task.id:
+            source_node = test_item.source_sankey_node
+            sankey_logger.warning(
+                f'[sync_test_item_to_sankey] use source_sankey_node '
+                f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
+            )
+            # 当测试项已有 pass/fail 结果时，删除作为过渡的旧 initial 节点
+            if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
+                SankeyNode.objects.filter(
+                    fae_task=fae_task, test_item=test_item, node_type='initial'
+                ).delete()
+        # 1. 兼容旧数据：从子分类/异常分类/合流节点创建的测试项可能没有记录 source_sankey_node，
+        #    通过已存在的边来推断源节点
+        elif special_source_edge := SankeyEdge.objects.filter(
+            fae_task=fae_task,
+            source_node__node_type__in=('subcategory', 'abnormal_category', 'merged')
+        ).filter(
+            Q(test_item=test_item) | Q(target_node__test_item=test_item)
+        ).select_related('source_node').first():
+            source_node = special_source_edge.source_node
+            sankey_logger.warning(
+                f'[sync_test_item_to_sankey] use special source edge to node '
+                f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
+            )
+            # 当测试项已有 pass/fail 结果时，删除作为过渡的旧 initial 节点
+            if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
+                SankeyNode.objects.filter(
+                    fae_task=fae_task, test_item=test_item, node_type='initial'
+                ).delete()
+        # 2. 检查是否有 merged/subcategory 节点直接关联到该测试项
+        elif merged_source := SankeyNode.objects.filter(
             fae_task=fae_task, test_item=test_item, node_type__in=('merged', 'subcategory')
-        ).first()
-        if merged_source:
+        ).first():
             source_node = merged_source
             # 删除可能已存在的旧 initial 节点（兼容旧数据）
             SankeyNode.objects.filter(
                 fae_task=fae_task, test_item=test_item, node_type='initial'
             ).delete()
         elif not sources:
-            # 2. 检查旧数据：initial 节点是否有来自 merged/subcategory 的入边
+            # 3. 检查旧数据：initial 节点是否有来自特殊节点的入边
             existing_init = SankeyNode.objects.filter(
                 fae_task=fae_task, test_item=test_item, node_type='initial'
             ).first()
@@ -428,6 +509,20 @@ def sync_test_item_to_sankey(test_item):
             source_node = SankeyNode.objects.filter(
                 fae_task=fae_task, test_item=src, node_type=src_node_type
             ).first()
+        
+        sankey_logger.warning(
+            f'[sync_test_item_to_sankey] final source_node='
+            f'{source_node.id if source_node else None} '
+            f'type={source_node.node_type if source_node else None}'
+        )
+        
+        # 清理该测试项 pass/fail 节点的旧入边，避免源节点变更后残留错误连线
+        if source_node:
+            SankeyEdge.objects.filter(
+                fae_task=fae_task,
+                target_node__test_item=test_item,
+                target_node__node_type__in=('pass', 'fail')
+            ).exclude(source_node=source_node).delete()
         
         # 处理 PASS 节点和边
         if test_item.passed_samples > 0:
@@ -539,6 +634,17 @@ class TestItemUpdateView(LoginRequiredMixin, UpdateView):
         # 获取原始数据
         old_instance = self.get_object()
         old_status = old_instance.status
+        
+        # 额外校验：如果测试项有来源桑基图节点，样品总数不能超过源节点数量
+        if old_instance.source_sankey_node:
+            source_node = old_instance.source_sankey_node
+            total = form.cleaned_data.get('total_samples') or 0
+            if total > source_node.quantity:
+                form.add_error(
+                    'total_samples',
+                    f'样品总数不能超过来源节点数量（{source_node.quantity}片）'
+                )
+                return self.form_invalid(form)
         
         response = super().form_valid(form)
         
@@ -1139,6 +1245,7 @@ class SankeyNodeCreateView(LoginRequiredMixin, View):
                 passed_samples=quantity if branch_type == 'passed' else 0,
                 abnormal_samples_count=quantity if branch_type == 'failed' else 0,
                 branch_type=branch_type,
+                source_sankey_node=source_node,
             )
             
             # 关联到 FAE 任务
@@ -1187,21 +1294,19 @@ class SankeyNodeSplitView(LoginRequiredMixin, View):
         edge_label = data.get('edge_label', '子分类')
         
         total = sum(s['quantity'] for s in splits)
-        if total > source_node.quantity:
-            return JsonResponse({'success': False, 'error': '拆分总数超过节点数量'})
         
-        # 异常分类节点数量累计不能超过fail节点样品总数
-        abnormal_total = sum(s['quantity'] for s in splits if s.get('node_type') == 'abnormal_category')
-        if abnormal_total > 0:
-            existing_abnormal_total = source_node.child_nodes.filter(
-                node_type='abnormal_category'
-            ).aggregate(total=Sum('quantity'))['total'] or 0
-            if abnormal_total + existing_abnormal_total > source_node.quantity:
-                remaining = max(source_node.quantity - existing_abnormal_total, 0)
-                return JsonResponse({
-                    'success': False,
-                    'error': f'fail节点已分类异常样品 {existing_abnormal_total} 片，还可分类 {remaining} 片，当前 {abnormal_total} 片超出限制'
-                })
+        # 已存在的子节点（子分类/异常分类）总量
+        existing_children_total = source_node.child_nodes.filter(
+            node_type__in=('subcategory', 'abnormal_category')
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        
+        # 子节点总量不得超过父节点数量
+        if existing_children_total + total > source_node.quantity:
+            remaining = max(source_node.quantity - existing_children_total, 0)
+            return JsonResponse({
+                'success': False,
+                'error': f'父节点已分流 {existing_children_total} 片，还可分流 {remaining} 片，当前 {total} 片超出限制'
+            })
         
         from django.db import transaction
         with transaction.atomic():
@@ -1259,13 +1364,88 @@ class SankeyNodeSplitView(LoginRequiredMixin, View):
                     )
                     analysis.save()
             
-            # 更新源节点数量：异常分类节点不扣减源节点数量
-            non_abnormal_total = sum(s['quantity'] for s in splits if s.get('node_type') != 'abnormal_category')
-            remaining = source_node.quantity - non_abnormal_total
-            if remaining > 0:
-                source_node.quantity = remaining
-                source_node.save(update_fields=['quantity'])
-            # 如果剩余为0，源节点保留但数量为0（表示已全部分流）
+            # 父节点数量保持不变，仅做校验
+        
+        return JsonResponse({'success': True})
+
+
+class SankeyNodeUpdateView(LoginRequiredMixin, View):
+    """更新子分类/异常分类节点的名称和数量（父节点数量保持不变，仅做总量校验）"""
+    def post(self, request, node_id):
+        node = get_object_or_404(SankeyNode, pk=node_id)
+        
+        if node.node_type not in ('subcategory', 'abnormal_category'):
+            return JsonResponse({'success': False, 'error': '只能编辑子分类或异常分类节点'})
+        
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': '无效的JSON数据'})
+        
+        new_label = (data.get('label') or '').strip()
+        new_quantity = int(data.get('quantity', 0))
+        
+        if not new_label:
+            return JsonResponse({'success': False, 'error': '节点名称不能为空'})
+        if new_quantity <= 0:
+            return JsonResponse({'success': False, 'error': '数量必须大于0'})
+        
+        old_quantity = node.quantity
+        if new_quantity == old_quantity and new_label == node.label:
+            return JsonResponse({'success': True})
+        
+        # 获取父节点（异常分类/子分类节点应当有且只有一个父节点）
+        parent = node.parent_nodes.first()
+        if not parent:
+            return JsonResponse({'success': False, 'error': '该节点没有父节点，无法编辑数量'})
+        
+        from django.db import transaction
+        from django.db.models import Sum
+        with transaction.atomic():
+            # 所有兄弟子节点（子分类+异常分类，不含当前节点）的总量
+            siblings_total = SankeyNode.objects.filter(
+                parent_nodes=parent,
+                node_type__in=('subcategory', 'abnormal_category')
+            ).exclude(pk=node.pk).aggregate(total=Sum('quantity'))['total'] or 0
+            
+            # 子节点总量不得超过父节点数量
+            if siblings_total + new_quantity > parent.quantity:
+                remaining = max(parent.quantity - siblings_total, 0)
+                return JsonResponse({
+                    'success': False,
+                    'error': f'父节点已分流 {siblings_total} 片，还可分流 {remaining} 片，当前 {new_quantity} 片超出限制'
+                })
+            
+            # 父节点数量保持不变
+            
+            # 更新当前节点
+            node.label = f"{new_label} ({new_quantity}片)"
+            node.quantity = new_quantity
+            if node.node_type == 'abnormal_category':
+                node.category_reason = new_label
+            node.save(update_fields=['label', 'quantity', 'category_reason'])
+            
+            # 同步更新入边的数量
+            incoming = SankeyEdge.objects.filter(target_node=node).first()
+            if incoming:
+                incoming.quantity = new_quantity
+                incoming.save(update_fields=['quantity'])
+            
+            # 如果是异常分类节点，同步更新关联的异常分析记录数量
+            if node.node_type == 'abnormal_category':
+                analysis = node.abnormal_analyses.first()
+                if analysis:
+                    analysis.quantity = new_quantity
+                    analysis.save(update_fields=['quantity'])
+            
+            # 如果该节点是某个测试项的 source_sankey_node，重新同步该测试项
+            for test_item in node.sourced_test_items.all():
+                try:
+                    sync_test_item_to_sankey(test_item)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f'同步测试项 {test_item.test_number} 失败: {e}', exc_info=True)
         
         return JsonResponse({'success': True})
 

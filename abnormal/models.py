@@ -2,6 +2,7 @@
 异常样品管理模块
 """
 import re
+import os
 from django.db import models
 from django.utils import timezone
 import datetime
@@ -222,6 +223,17 @@ class TestRecordEntry(models.Model):
         return f"{self.abnormal_sample.sample_number} - {self.record_time.strftime('%Y-%m-%d %H:%M')}"
 
 
+def abnormal_log_upload_path(instance, filename):
+    """按 样品/类型/[文件夹]/文件名 组织目录，文件名由调用方决定"""
+    now = timezone.now()
+    base_path = f"abnormal/logs/{now:%Y/%m}"
+    sample = instance.abnormal_sample
+
+    if instance.folder_name:
+        return f"{base_path}/{sample.sample_number}/{instance.log_type}/{instance.folder_name}/{filename}"
+    return f"{base_path}/{sample.sample_number}/{instance.log_type}/{filename}"
+
+
 class AbnormalLogFile(models.Model):
     """异常样品日志文件"""
     LOG_TYPE_CHOICES = [
@@ -239,7 +251,8 @@ class AbnormalLogFile(models.Model):
     abnormal_sample = models.ForeignKey(AbnormalSample, on_delete=models.CASCADE, 
                                          verbose_name='异常样品', related_name='log_files')
     log_type = models.CharField('日志类型', max_length=20, choices=LOG_TYPE_CHOICES)
-    file = models.FileField('日志文件', upload_to='abnormal/logs/%Y/%m/', blank=True, null=True)
+    folder_name = models.CharField('文件夹名', max_length=255, blank=True, default='')
+    file = models.FileField('日志文件', upload_to=abnormal_log_upload_path, max_length=500, blank=True, null=True)
     file_url = models.URLField('日志文件URL', max_length=500, blank=True, null=True)
     description = models.CharField('描述', max_length=200, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='上传人')

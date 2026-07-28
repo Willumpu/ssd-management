@@ -57,6 +57,10 @@ class TestItem(models.Model):
                                            blank=True, related_name='derived_tests')
     branch_type = models.CharField('分支类型', max_length=20, choices=BRANCH_TYPE_CHOICES,
                                     blank=True, default='')
+    source_sankey_node = models.ForeignKey(
+        'SankeyNode', on_delete=models.SET_NULL, verbose_name='来源桑基图节点',
+        null=True, blank=True, related_name='sourced_test_items'
+    )
     
     start_date = models.DateTimeField('开始时间', null=True, blank=True)
     end_date = models.DateTimeField('结束时间', null=True, blank=True)

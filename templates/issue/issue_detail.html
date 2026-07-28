@@ -132,8 +132,6 @@
                         <div class="flex items-center gap-2 mb-2">
                             {% if detail.detail_type == 'troubleshooting' %}
                             <span class="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400">排查记录</span>
-                            {% elif detail.detail_type == 'abnormal_sample' %}
-                            <span class="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400">异常样品</span>
                             {% elif detail.detail_type == 'root_cause' %}
                             <span class="px-2 py-0.5 rounded text-xs bg-yellow-500/20 text-yellow-400">根因结果</span>
                             {% elif detail.detail_type == 'solution' %}
@@ -147,19 +145,16 @@
                         {% if detail.content %}
                         <div class="text-sm text-slate-300 whitespace-pre-wrap">{{ detail.content }}</div>
                         {% endif %}
-                        {% if detail.test_item %}
+                        {% if detail.test_items.all %}
                         <p class="text-sm text-slate-300 mt-1">关联测试项：
-                            <a href="{% url 'testing:test_detail' detail.test_item.pk %}" class="text-purple-400 hover:text-purple-300 hover:underline">{{ detail.test_item.test_number }}</a>
-                        </p>
-                        {% endif %}
-                        {% if detail.abnormal_sample %}
-                        <p class="text-sm text-slate-300 mt-1">关联异常样品：
-                            <a href="{% url 'abnormal:abnormal_detail' detail.abnormal_sample.pk %}" class="text-red-400 hover:text-red-300 hover:underline">{{ detail.abnormal_sample.sample_number }}</a>
+                            {% for test in detail.test_items.all %}
+                            <a href="{% url 'testing:test_detail' test.pk %}" class="text-purple-400 hover:text-purple-300 hover:underline">{{ test.test_number }}</a>{% if not forloop.last %}，{% endif %}
+                            {% endfor %}
                         </p>
                         {% endif %}
                     </div>
                     {% empty %}
-                    <p class="text-sm text-slate-500">该解决记录下暂无明细，请添加排查记录、异常样品等。</p>
+                    <p class="text-sm text-slate-500">该解决记录下暂无明细，请添加排查记录、根因结果、解决方案或验证记录。</p>
                     {% endfor %}
                 </div>
 
@@ -186,22 +181,10 @@
                         </div>
                         <div id="detail-test-item-group-{{ record.pk }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs text-slate-400 mb-1">关联测试项（选填）</label>
-                                <select name="test_item" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                                    <option value="">不关联</option>
-                                    {% for test in detail_form.test_item.field.queryset %}
+                                <label class="block text-xs text-slate-400 mb-1">关联测试项（选填，支持多选）</label>
+                                <select name="test_items" multiple class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                                    {% for test in detail_form.test_items.field.queryset %}
                                     <option value="{{ test.pk }}">{{ test.test_number }} - {{ test.get_test_content_display }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div id="detail-abnormal-sample-group-{{ record.pk }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
-                            <div>
-                                <label class="block text-xs text-slate-400 mb-1">关联异常样品</label>
-                                <select name="abnormal_sample" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                                    <option value="">请选择异常样品</option>
-                                    {% for sample in detail_form.abnormal_sample.field.queryset %}
-                                    <option value="{{ sample.pk }}">{{ sample.sample_number }} - {{ sample.customer.customer_code }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -286,20 +269,12 @@ function showDetailForm(recordId, type, label) {
     const title = document.getElementById('detail-form-title-' + recordId);
     const contentGroup = document.getElementById('detail-content-group-' + recordId);
     const testItemGroup = document.getElementById('detail-test-item-group-' + recordId);
-    const abnormalSampleGroup = document.getElementById('detail-abnormal-sample-group-' + recordId);
 
     if (typeInput) typeInput.value = type;
     if (title) title.textContent = '添加' + label;
 
-    if (type === 'abnormal_sample') {
-        if (contentGroup) contentGroup.classList.add('hidden');
-        if (testItemGroup) testItemGroup.classList.add('hidden');
-        if (abnormalSampleGroup) abnormalSampleGroup.classList.remove('hidden');
-    } else {
-        if (contentGroup) contentGroup.classList.remove('hidden');
-        if (testItemGroup) testItemGroup.classList.remove('hidden');
-        if (abnormalSampleGroup) abnormalSampleGroup.classList.add('hidden');
-    }
+    if (contentGroup) contentGroup.classList.remove('hidden');
+    if (testItemGroup) testItemGroup.classList.remove('hidden');
 
     if (form) form.classList.remove('hidden');
 }

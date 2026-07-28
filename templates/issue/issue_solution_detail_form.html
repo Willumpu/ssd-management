@@ -21,7 +21,6 @@
             <p class="text-white text-sm">{{ form.instance.get_detail_type_display }}</p>
         </div>
 
-        {% if form.instance.detail_type != 'abnormal_sample' %}
         <div>
             <label class="block text-sm text-slate-400 mb-2">内容</label>
             {{ form.content }}
@@ -29,27 +28,14 @@
             <p class="text-red-400 text-xs mt-1">{{ form.content.errors.0 }}</p>
             {% endif %}
         </div>
-        {% endif %}
 
-        {% if form.instance.detail_type != 'abnormal_sample' %}
         <div>
-            <label class="block text-sm text-slate-400 mb-2">关联测试项（选填）</label>
-            {{ form.test_item }}
-            {% if form.test_item.errors %}
-            <p class="text-red-400 text-xs mt-1">{{ form.test_item.errors.0 }}</p>
+            <label class="block text-sm text-slate-400 mb-2">关联测试项（选填，支持多选）</label>
+            {{ form.test_items }}
+            {% if form.test_items.errors %}
+            <p class="text-red-400 text-xs mt-1">{{ form.test_items.errors.0 }}</p>
             {% endif %}
         </div>
-        {% endif %}
-
-        {% if form.instance.detail_type == 'abnormal_sample' %}
-        <div>
-            <label class="block text-sm text-slate-400 mb-2">关联异常样品</label>
-            {{ form.abnormal_sample }}
-            {% if form.abnormal_sample.errors %}
-            <p class="text-red-400 text-xs mt-1">{{ form.abnormal_sample.errors.0 }}</p>
-            {% endif %}
-        </div>
-        {% endif %}
 
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
             <a href="{% url 'issue:issue_detail' issue.pk %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors text-sm">取消</a>

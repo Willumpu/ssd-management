@@ -25,6 +25,7 @@ urlpatterns = [
     path('groups/<int:pk>/update/', views.AbnormalSampleGroupUpdateView.as_view(), name='group_update'),
     path('groups/<int:pk>/delete/', views.AbnormalSampleGroupDeleteView.as_view(), name='group_delete'),
     path('groups/<int:pk>/bulk-edit/', views.AbnormalSampleGroupBulkEditView.as_view(), name='group_bulk_edit'),
+    path('groups/<int:pk>/batch-upload-log/', views.AbnormalSampleGroupBatchUploadLogView.as_view(), name='group_batch_upload_log'),
     # API
     path('api/list/', views.AbnormalSampleAPIListView.as_view(), name='api_list'),
     path('api/groups/', views.AbnormalSampleGroupAPIListView.as_view(), name='api_group_list'),

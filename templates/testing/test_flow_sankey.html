@@ -672,6 +672,16 @@
                 createGroupBtn.classList.add('hidden');
             }
         }
+
+        // 控制"编辑节点"按钮显示（子类/异常分类节点可编辑）
+        const editNodeBtn = document.getElementById('menu-edit-node');
+        if (editNodeBtn) {
+            if (nodeData.nodeType === 'subcategory' || nodeData.nodeType === 'abnormal_category') {
+                editNodeBtn.classList.remove('hidden');
+            } else {
+                editNodeBtn.classList.add('hidden');
+            }
+        }
     }
 
     function hideAllMenus() {
@@ -941,11 +951,59 @@
         });
         if (sourceTestId) {
             params.set('source_test', sourceTestId);
-        } else if (sourceId) {
-            // 合流/子分类节点未关联测试项，传递桑基图节点ID用于后续建边
+        }
+        if (sourceId) {
+            // 始终传递桑基图节点ID，后端需要据此确定真正的源节点
             params.set('source_sankey_node_id', sourceId);
         }
         window.location.href = `/testing/create/?${params.toString()}`;
+    }
+
+    // ========== 操作：编辑节点 ==========
+    function showEditNodeModal() {
+        const menu = document.getElementById('node-context-menu');
+        const nodeId = menu.dataset.nodeId;
+        const nodeName = menu.dataset.nodeName;
+        const nodeQty = menu.dataset.nodeQty;
+        const nodeType = menu.dataset.nodeType;
+        hideAllMenus();
+
+        document.getElementById('edit-node-id').value = nodeId;
+        document.getElementById('edit-node-type').textContent = nodeType === 'abnormal_category' ? '异常分类' : '子分类';
+        document.getElementById('edit-node-label').value = nodeName.replace(/\n\s*\(\d+片\)$/, '').replace(/\s*\(\d+片\)$/, '');
+        document.getElementById('edit-node-qty').value = nodeQty;
+        document.getElementById('modal-edit-node').classList.remove('hidden');
+    }
+
+    function submitEditNode() {
+        const nodeId = document.getElementById('edit-node-id').value;
+        const label = document.getElementById('edit-node-label').value.trim();
+        const qty = parseInt(document.getElementById('edit-node-qty').value) || 0;
+        const maxQty = parseInt(document.getElementById('edit-node-qty').max);
+
+        if (!label) {
+            alert('节点名称不能为空');
+            return;
+        }
+        if (qty <= 0) {
+            alert('数量必须大于0');
+            return;
+        }
+
+        fetch(`/testing/sankey/nodes/${nodeId}/update/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+            body: JSON.stringify({label, quantity: qty})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeModal('modal-edit-node');
+                loadChart();
+            } else {
+                alert(data.error || '编辑失败');
+            }
+        });
     }
 
     // ========== 通用 ==========
@@ -1404,6 +1462,9 @@
                 <button onclick="showSplitModal()" class="w-full text-left px-4 py-2 text-sm text-orange-400 hover:bg-slate-800 transition-colors">
                     <i class="fas fa-code-branch mr-2"></i>拆分子类
                 </button>
+                <button id="menu-edit-node" onclick="showEditNodeModal()" class="hidden w-full text-left px-4 py-2 text-sm text-cyan-400 hover:bg-slate-800 transition-colors">
+                    <i class="fas fa-edit mr-2"></i>编辑节点
+                </button>
                 <button onclick="showMergeModal()" class="w-full text-left px-4 py-2 text-sm text-purple-400 hover:bg-slate-800 transition-colors">
                     <i class="fas fa-compress-alt mr-2"></i>合流...
                 </button>
@@ -1441,6 +1502,28 @@
         <div class="flex gap-3">
             <button onclick="submitCreateTest()" class="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-all">创建</button>
             <button onclick="closeModal('modal-create-test')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 弹窗：编辑节点 ========== -->
+<div id="modal-edit-node" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="glass rounded-xl border border-slate-700/50 p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">编辑<span id="edit-node-type"></span>节点</h3>
+        <input type="hidden" id="edit-node-id">
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">节点名称</label>
+                <input type="text" id="edit-node-label" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm text-slate-400 mb-2">样品数量</label>
+                <input type="number" id="edit-node-qty" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500" placeholder="填写新数量">
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="submitEditNode()" class="flex-1 px-4 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm transition-all">保存</button>
+            <button onclick="closeModal('modal-edit-node')" class="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm transition-all">取消</button>
         </div>
     </div>
 </div>

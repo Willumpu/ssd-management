@@ -56,7 +56,7 @@ class IssueDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         issue = self.object
-        context['solution_records'] = issue.solution_records.prefetch_related('details__test_item', 'details__abnormal_sample', 'details__created_by')
+        context['solution_records'] = issue.solution_records.prefetch_related('details__test_items', 'details__created_by')
         context['detail_form'] = IssueSolutionDetailForm()
         context['status_choices'] = Issue.STATUS_CHOICES
         context['logs'] = issue.logs.select_related('operator').all()
@@ -188,6 +188,7 @@ class IssueSolutionDetailCreateView(LoginRequiredMixin, View):
             detail.solution_record = solution_record
             detail.created_by = request.user
             detail.save()
+            form.save_m2m()
             messages.success(request, f'{detail.get_detail_type_display()}添加成功')
         else:
             for field, errors in form.errors.items():

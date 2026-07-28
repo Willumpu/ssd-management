@@ -1,0 +1,20 @@
+<div class="p-4 flex justify-between items-center hover:bg-slate-800/30 transition-colors">
+    <div class="flex items-center gap-3">
+        <i class="fas fa-file-code text-blue-400"></i>
+        <div>
+            <p class="text-sm text-white">{{ log_file.filename }}</p>
+            <p class="text-xs text-slate-500">{{ log_file.uploaded_at|date:'Y-m-d H:i' }} · {{ log_file.size|filesizeformat }}</p>
+        </div>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'abnormal:log_file_view' log_file.pk %}" target="_blank" class="text-blue-400 hover:text-blue-300 px-2" title="查看">
+            <i class="fas fa-eye"></i>
+        </a>
+        <a href="{% if log_file.file %}{{ log_file.file.url }}{% else %}{{ log_file.file_url }}{% endif %}" download class="text-emerald-400 hover:text-emerald-300 px-2" title="下载">
+            <i class="fas fa-download"></i>
+        </a>
+        <a href="{% url 'abnormal:log_file_delete' log_file.pk %}" class="text-red-400 hover:text-red-300 px-2" title="删除" onclick="return confirm('确定删除此日志文件？')">
+            <i class="fas fa-trash"></i>
+        </a>
+    </div>
+</div>
