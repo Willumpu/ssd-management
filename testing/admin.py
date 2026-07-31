@@ -3,7 +3,7 @@
 """
 from django.contrib import admin
 from .models import (
-    TestItem, TestAbnormalRelation, TestComment, TestItemLog,
+    TestItem, TestContent, TestAbnormalRelation, TestComment, TestItemLog,
     TestParameterDefinition, TestItemParameter, AbnormalReason, TestItemAbnormalAnalysis
 )
 
@@ -34,13 +34,24 @@ class TestItemAbnormalAnalysisInline(admin.TabularInline):
     readonly_fields = ['created_by', 'created_at']
 
 
+@admin.register(TestContent)
+class TestContentAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'is_active', 'order', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'code']
+    list_editable = ['is_active', 'order']
+    ordering = ['order', 'id']
+
+
 @admin.register(TestItem)
 class TestItemAdmin(admin.ModelAdmin):
     list_display = ['test_number', 'tracker', 'customer', 'test_content', 'status', 
                     'total_samples', 'passed_samples', 'abnormal_samples_count', 
                     'testing_samples', 'retesting_samples', 'created_at']
     list_filter = ['test_content', 'status', 'created_at']
-    search_fields = ['test_number', 'customer__customer_code']
+    search_fields = ['test_number', 'customer__customer_code', 'test_content__name']
+    list_editable = ['test_content']
+    autocomplete_fields = ['test_content']
     inlines = [TestAbnormalRelationInline, TestItemLogInline, TestItemParameterInline, TestItemAbnormalAnalysisInline]
     date_hierarchy = 'created_at'
 

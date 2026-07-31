@@ -1853,8 +1853,8 @@
             <div>
                 <label class="block text-sm text-slate-400 mb-2">测试内容</label>
                 <select id="create-test-content" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500">
-                    {% for value, label in test_content_choices %}
-                    <option value="{{ value }}">{{ label }}</option>
+                    {% for content in test_content_choices %}
+                    <option value="{{ content.pk }}">{{ content.name }}</option>
                     {% endfor %}
                 </select>
             </div>

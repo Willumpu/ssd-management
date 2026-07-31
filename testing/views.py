@@ -9,7 +9,7 @@ from django.urls import reverse_lazy
 from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 from .models import (
-    TestItem, TestAbnormalRelation, TestComment, TestItemLog, SankeyNode, SankeyEdge,
+    TestItem, TestContent, TestAbnormalRelation, TestComment, TestItemLog, SankeyNode, SankeyEdge,
     TestItemAbnormalAnalysis, AbnormalReason
 )
 from .forms import TestCommentForm, TestItemForm, TestItemCreateForm, TestItemAbnormalAnalysisForm
@@ -55,7 +55,7 @@ def _link_abnormal_samples_to_test(test_item, samples, user):
         solution_name = str(test_item.solution) if test_item.solution else '无'
         record_content = (
             f"加入测试项 {test_item.test_number}，"
-            f"测试内容：{test_item.get_test_content_display()}，"
+            f"测试内容：{test_item.test_content.name if test_item.test_content else '-'}，"
             f"测试方案：{solution_name}"
         )
         
@@ -127,7 +127,7 @@ class TestItemListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['status_choices'] = TestItem.TEST_STATUS_CHOICES
-        context['content_choices'] = TestItem.TEST_CONTENT_CHOICES
+        context['content_choices'] = TestContent.objects.filter(is_active=True).order_by('order', 'id')
         return context
 
 
@@ -358,7 +358,7 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
                         source_node=source_node,
                         target_node=init,
                         defaults={
-                            'label': self.object.get_test_content_display(),
+                            'label': self.object.test_content.name if self.object.test_content else '-',
                             'quantity': self.object.total_samples,
                             'test_item': self.object,
                         }
@@ -419,7 +419,7 @@ def sync_test_item_to_sankey(test_item):
     from django.db import transaction
     with transaction.atomic():
         sources = list(test_item.source_tests.all())
-        test_name = test_item.get_test_content_display()
+        test_name = test_item.test_content.name if test_item.test_content else '-'
         
         # 确定源节点
         source_node = None
@@ -690,8 +690,8 @@ class TestItemUpdateView(LoginRequiredMixin, UpdateView):
                 changed_fields.append(label)
                 # 获取显示值
                 if field == 'test_content':
-                    old_display = dict(TestItem.TEST_CONTENT_CHOICES).get(old_value, old_value)
-                    new_display = dict(TestItem.TEST_CONTENT_CHOICES).get(new_value, new_value)
+                    old_display = old_value.name if old_value else '无'
+                    new_display = new_value.name if new_value else '无'
                 elif field == 'status':
                     old_display = dict(TestItem.TEST_STATUS_CHOICES).get(old_value, old_value)
                     new_display = dict(TestItem.TEST_STATUS_CHOICES).get(new_value, new_value)
@@ -955,7 +955,7 @@ class TestFlowSankeyView(LoginRequiredMixin, View):
         from abnormal.models import AbnormalSample
         context = {
             'fae_task': task,
-            'test_content_choices': TestItem.TEST_CONTENT_CHOICES,
+            'test_content_choices': TestContent.objects.filter(is_active=True).order_by('order', 'id'),
             'test_count': task.test_items.count(),
             'abnormal_samples': list(AbnormalSample.objects.filter(
                 sankey_nodes__fae_task=task
@@ -989,7 +989,7 @@ class TestFlowSankeyView(LoginRequiredMixin, View):
                 if test.passed_samples > 0:
                     pn = SankeyNode.objects.create(
                         fae_task=task,
-                        label=f"PASS {test.test_number} - {test.get_test_content_display()} ({test.passed_samples}片)",
+                        label=f"PASS {test.test_number} - {test.test_content.name if test.test_content else '-'} ({test.passed_samples}片)",
                         quantity=test.passed_samples,
                         node_type='pass',
                         test_item=test,
@@ -999,7 +999,7 @@ class TestFlowSankeyView(LoginRequiredMixin, View):
                 if test.abnormal_samples_count > 0:
                     fn = SankeyNode.objects.create(
                         fae_task=task,
-                        label=f"FAIL {test.test_number} - {test.get_test_content_display()} ({test.abnormal_samples_count}片)",
+                        label=f"FAIL {test.test_number} - {test.test_content.name if test.test_content else '-'} ({test.abnormal_samples_count}片)",
                         quantity=test.abnormal_samples_count,
                         node_type='fail',
                         test_item=test,
@@ -1008,7 +1008,7 @@ class TestFlowSankeyView(LoginRequiredMixin, View):
             
             # 2. 创建边
             for test in tests:
-                test_name = test.get_test_content_display()
+                test_name = test.test_content.name if test.test_content else '-'
                 sources = [s for s in test.source_tests.all()]
                 
                 if not sources:
@@ -1072,7 +1072,7 @@ class SankeyEmbedView(LoginRequiredMixin, View):
         from abnormal.models import AbnormalSample
         context = {
             'fae_task': task,
-            'test_content_choices': TestItem.TEST_CONTENT_CHOICES,
+            'test_content_choices': TestContent.objects.filter(is_active=True).order_by('order', 'id'),
             'test_count': task.test_items.count(),
             'abnormal_samples': list(AbnormalSample.objects.filter(
                 sankey_nodes__fae_task=task
@@ -1183,9 +1183,9 @@ class SankeyDataView(LoginRequiredMixin, View):
                 # 动态生成流显示名称
                 flow_name = edge.label
                 if edge.test_item and edge.test_item.solution:
-                    flow_name = f"{edge.test_item.get_test_content_display()}\n{edge.test_item.solution.software_version}"
+                    flow_name = f"{edge.test_item.test_content.name if edge.test_item.test_content else '-'}\n{edge.test_item.solution.software_version}"
                 elif edge.test_item:
-                    flow_name = edge.test_item.get_test_content_display()
+                    flow_name = edge.test_item.test_content.name if edge.test_item.test_content else '-'
                 # 测试项参数
                 test_item_params = []
                 if edge.test_item:
@@ -1222,7 +1222,12 @@ class SankeyNodeCreateView(LoginRequiredMixin, View):
         source_node_id = data.get('source_node_id')
         branch_type = data.get('branch_type')  # 'passed' or 'failed'
         quantity = int(data.get('quantity', 0))
-        test_content = data.get('test_content', '')
+        test_content_val = data.get('test_content', '')
+        try:
+            test_content = TestContent.objects.get(pk=int(test_content_val))
+        except (ValueError, TypeError, TestContent.DoesNotExist):
+            # 兼容旧逻辑：按编码查找
+            test_content = get_object_or_404(TestContent, code=test_content_val)
         
         source_node = get_object_or_404(SankeyNode, pk=source_node_id, fae_task=task)
         
@@ -1260,7 +1265,7 @@ class SankeyNodeCreateView(LoginRequiredMixin, View):
             label_prefix = 'PASS' if branch_type == 'passed' else 'FAIL'
             target_node = SankeyNode.objects.create(
                 fae_task=task,
-                label=f"{label_prefix} - {test_item.get_test_content_display()} ({quantity}片)",
+                label=f"{label_prefix} - {test_item.test_content.name if test_item.test_content else '-'} ({quantity}片)",
                 quantity=quantity,
                 node_type=node_type,
                 test_item=test_item,
@@ -1269,7 +1274,7 @@ class SankeyNodeCreateView(LoginRequiredMixin, View):
             # 创建流
             SankeyEdge.objects.create(
                 fae_task=task,
-                label=test_item.get_test_content_display(),
+                label=test_item.test_content.name if test_item.test_content else '-',
                 source_node=source_node,
                 target_node=target_node,
                 quantity=quantity,

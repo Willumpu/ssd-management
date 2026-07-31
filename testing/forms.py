@@ -4,7 +4,7 @@
 from django import forms
 from django.db.models import Sum
 from django_ckeditor_5.widgets import CKEditor5Widget
-from .models import TestItem, TestComment, TestParameterDefinition, TestItemParameter, AbnormalReason, TestItemAbnormalAnalysis
+from .models import TestItem, TestContent, TestComment, TestParameterDefinition, TestItemParameter, AbnormalReason, TestItemAbnormalAnalysis
 
 
 def _add_dynamic_param_fields(form_instance):
@@ -81,6 +81,7 @@ class TestItemForm(forms.ModelForm):
                 queryset = (queryset | AbnormalSample.objects.filter(pk__in=linked_ids)).distinct()
         self.fields['abnormal_samples'].queryset = queryset
         self.fields['solution'].required = True
+        self.fields['test_content'].queryset = TestContent.objects.filter(is_active=True).order_by('order', 'id')
         self._param_defs = list(_add_dynamic_param_fields(self))
 
 

@@ -9,9 +9,27 @@ from fae.models import User, Customer
 from django_ckeditor_5.fields import CKEditor5Field
 
 
+class TestContent(models.Model):
+    """测试内容（可在后台管理）"""
+    code = models.CharField('编码', max_length=30, unique=True)
+    name = models.CharField('名称', max_length=50)
+    is_active = models.BooleanField('启用', default=True)
+    order = models.PositiveIntegerField('排序', default=0)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        verbose_name = '测试内容'
+        verbose_name_plural = '测试内容'
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 class TestItem(models.Model):
     """测试项管理"""
-    # 测试内容选项
+    # 保留旧选项常量用于兼容与数据迁移
     TEST_CONTENT_CHOICES = [
         ('rdt', 'RDT'),
         ('burn_in', 'BurnInTest'),
@@ -37,7 +55,10 @@ class TestItem(models.Model):
     project = models.ForeignKey('project.Project', on_delete=models.SET_NULL, verbose_name='所属项目',
                                  null=True, blank=True, related_name='test_items')
     status = models.CharField('测试状态', max_length=20, choices=TEST_STATUS_CHOICES, default='not_started')
-    test_content = models.CharField('测试内容', max_length=20, choices=TEST_CONTENT_CHOICES)
+    test_content = models.ForeignKey(
+        TestContent, on_delete=models.PROTECT, verbose_name='测试内容',
+        null=True, blank=True, related_name='test_items'
+    )
     solution = models.ForeignKey('solution.Solution', on_delete=models.SET_NULL, verbose_name='测试方案',
                                   null=True, blank=True, related_name='test_items')
     sample_source = models.CharField('样品来源', max_length=100, blank=True)
@@ -74,7 +95,11 @@ class TestItem(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.test_number} - {self.get_test_content_display()}"
+        return f"{self.test_number} - {self.test_content.name if self.test_content else '-'}"
+    
+    def get_test_content_display(self):
+        """兼容旧模板/代码的显示方法"""
+        return self.test_content.name if self.test_content else '-'
     
     def generate_test_number(self):
         """生成测试项编号 TEST-YYMMDD-XXX"""
