@@ -105,28 +105,6 @@
                            placeholder="请输入样品来源">
                 </div>
 
-                <!-- 关联异常样品组 -->
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="block text-sm text-slate-400">关联异常样品组</label>
-                        {% if object %}
-                        <a href="{% url 'abnormal:group_create' %}?test_item={{ object.pk }}" target="_blank" class="text-xs text-orange-400 hover:text-orange-300 transition-colors">
-                            <i class="fas fa-plus mr-1"></i>新建异常样品组
-                        </a>
-                        {% endif %}
-                    </div>
-                    <select name="abnormal_group"
-                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-                        <option value="">请选择异常样品组（可选）</option>
-                        {% for group in form.abnormal_group.field.queryset %}
-                        <option value="{{ group.pk }}" {% if form.abnormal_group.value == group.pk %}selected{% endif %}>
-                            {{ group.group_number }} - {{ group.customer.customer_code }} ({{ group.total_count }}片)
-                        </option>
-                        {% endfor %}
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">选择后自动关联该组内所有异常样品，并为其添加测试记录</p>
-                </div>
-
                 <!-- 关联异常样品 -->
                 <div class="md:col-span-2">
                     <label class="block text-sm text-slate-400 mb-2">关联异常样品</label>
@@ -137,7 +115,7 @@
                             <input type="checkbox" name="abnormal_samples" value="{{ sample.pk }}"
                                    {% if sample.pk|stringformat:'s' in selected_ids %}checked{% endif %}
                                    class="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 focus:ring-1 bg-slate-700 cursor-pointer">
-                            <span class="text-sm text-slate-300 select-none">{{ sample.sample_number }} - {{ sample.customer.customer_code }} {% if sample.group %}({{ sample.group.group_number }}){% endif %} <span class="text-slate-500 text-xs">{{ sample.get_log_type_display|default:'未知日志' }}</span></span>
+                            <span class="text-sm text-slate-300 select-none">{{ sample.sample_number }} - {{ sample.customer.customer_code }} <span class="text-slate-500 text-xs">{{ sample.get_log_type_display|default:'未知日志' }}</span></span>
                         </label>
                         {% empty %}
                         <p class="text-sm text-slate-500 px-2 py-1">暂无可用异常样品</p>

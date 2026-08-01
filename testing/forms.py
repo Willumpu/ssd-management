@@ -44,13 +44,6 @@ def _add_dynamic_param_fields(form_instance):
 
 class TestItemForm(forms.ModelForm):
     """测试项表单 - 用于更新，包含所有字段"""
-    abnormal_group = forms.ModelChoiceField(
-        label='关联异常样品组',
-        queryset=None,
-        required=False,
-        empty_label='请选择异常样品组（可选）',
-        help_text='选择后自动关联该组内所有异常样品，并为其添加测试记录'
-    )
     abnormal_samples = forms.ModelMultipleChoiceField(
         label='关联异常样品',
         queryset=None,
@@ -67,14 +60,11 @@ class TestItemForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from abnormal.models import AbnormalSampleGroup, AbnormalSample
-        self.fields['abnormal_group'].queryset = AbnormalSampleGroup.objects.filter(
-            status__in=['pending_analysis', 'retesting']
-        ).select_related('customer').order_by('-created_at')
+        from abnormal.models import AbnormalSample
         # 编辑时包含已关联的异常样品
         queryset = AbnormalSample.objects.filter(
             status__in=['pending_analysis', 'retesting'],
-        ).select_related('group', 'customer').order_by('-created_at')
+        ).select_related('customer').order_by('-created_at')
         if self.instance and self.instance.pk:
             linked_ids = list(self.instance.abnormal_relations.values_list('abnormal_sample_id', flat=True))
             if linked_ids:
@@ -87,13 +77,6 @@ class TestItemForm(forms.ModelForm):
 
 class TestItemCreateForm(forms.ModelForm):
     """测试项创建表单 - 创建时需要填写各状态样品数量，且总和必须等于样品总数"""
-    abnormal_group = forms.ModelChoiceField(
-        label='关联异常样品组',
-        queryset=None,
-        required=False,
-        empty_label='请选择异常样品组（可选）',
-        help_text='选择后自动关联该组内所有异常样品，并为其添加测试记录'
-    )
     abnormal_samples = forms.ModelMultipleChoiceField(
         label='关联异常样品',
         queryset=None,
@@ -110,13 +93,10 @@ class TestItemCreateForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from abnormal.models import AbnormalSampleGroup, AbnormalSample
-        self.fields['abnormal_group'].queryset = AbnormalSampleGroup.objects.filter(
-            status__in=['pending_analysis', 'retesting']
-        ).select_related('customer').order_by('-created_at')
+        from abnormal.models import AbnormalSample
         self.fields['abnormal_samples'].queryset = AbnormalSample.objects.filter(
             status__in=['pending_analysis', 'retesting'],
-        ).select_related('group', 'customer').order_by('-created_at')
+        ).select_related('customer').order_by('-created_at')
         # 如果从 FAE 任务跳转过来，自动填充客户
         if self.initial.get('customer'):
             self.fields['customer'].initial = self.initial.get('customer')

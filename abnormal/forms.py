@@ -50,6 +50,46 @@ class AbnormalSampleGroupForm(forms.ModelForm):
         self.fields['test_item'].empty_label = "请选择关联测试项（可选）"
 
 
+class AbnormalSampleBatchCreateForm(forms.ModelForm):
+    """批量创建异常样品表单"""
+    total_count = forms.IntegerField(
+        label='样品数量',
+        min_value=1,
+        max_value=1000,
+        initial=1,
+        help_text='一次自动生成对应数量的异常样品'
+    )
+    
+    class Meta:
+        model = AbnormalSample
+        fields = ['customer', 'project', 'solution', 'abnormal_summary', 'abnormal_description', 'priority', 'status', 'assignee', 'test_item', 'total_count']
+        widgets = {
+            'abnormal_description': CKEditor5Widget(config_name='default'),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from fae.models import User
+        from testing.models import TestItem
+        from solution.models import Solution
+        from fae.models import Customer
+        from project.models import Project
+        
+        self.fields['assignee'].queryset = User.objects.filter(role__in=['fae', 'fae_leader'])
+        self.fields['assignee'].required = True
+        self.fields['customer'].queryset = Customer.objects.all().order_by('customer_code')
+        self.fields['solution'].queryset = Solution.objects.all().order_by('-created_at')
+        self.fields['solution'].required = False
+        self.fields['project'].queryset = Project.objects.all().order_by('-created_at')
+        self.fields['project'].required = False
+        test_item_qs = TestItem.objects.filter(
+            status__in=['not_started', 'in_progress']
+        ).select_related('customer').order_by('-created_at')
+        self.fields['test_item'].queryset = test_item_qs
+        self.fields['test_item'].required = False
+        self.fields['test_item'].empty_label = "请选择关联测试项（可选）"
+
+
 class AbnormalSampleForm(forms.ModelForm):
     """异常样品表单"""
     class Meta:

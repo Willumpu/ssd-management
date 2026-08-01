@@ -57,6 +57,10 @@
                 <p class="text-sm text-slate-300">{{ project.sample_total_quantity|default:'-' }}</p>
             </div>
             <div>
+                <p class="text-xs text-slate-500 mb-1">NAND型号</p>
+                <p class="text-sm text-slate-300">{{ project.nand_model|default:'-' }}</p>
+            </div>
+            <div>
                 <p class="text-xs text-slate-500 mb-1">关联客户</p>
                 <p class="text-sm text-slate-300">{{ project.customer.customer_code|default:'-' }}</p>
             </div>
@@ -86,7 +90,7 @@
             </button>
         </div>
         <div id="plan-add-form" class="hidden p-4 border-b border-slate-800 bg-slate-900/30">
-            <form method="post" action="{% url 'project:production_plan_add' project.pk %}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <form method="post" action="{% url 'project:production_plan_add' project.pk %}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {% csrf_token %}
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">方案名称</label>
@@ -104,7 +108,23 @@
                     <label class="block text-xs text-slate-400 mb-1">生产数量（颗）</label>
                     {{ production_plan_form.production_quantity }}
                 </div>
-                <div class="md:col-span-4 flex justify-end gap-2">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Flash质量</label>
+                    {{ production_plan_form.flash_quality }}
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">当前软件版本</label>
+                    {{ production_plan_form.current_software_version }}
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">生产状态</label>
+                    {{ production_plan_form.production_status }}
+                </div>
+                <div class="md:col-span-2 lg:col-span-4">
+                    <label class="block text-xs text-slate-400 mb-1">备注</label>
+                    {{ production_plan_form.remarks }}
+                </div>
+                <div class="md:col-span-2 lg:col-span-4 flex justify-end gap-2">
                     <button type="button" onclick="togglePlanForm()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors">取消</button>
                     <button type="submit" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs transition-colors">保存</button>
                 </div>
@@ -112,10 +132,19 @@
         </div>
         <div class="divide-y divide-slate-800">
             {% for plan in production_plans %}
-            <div class="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-800/30 transition-colors">
-                <div>
+            <div class="p-4 flex flex-col md:flex-row md:items-start justify-between gap-3 hover:bg-slate-800/30 transition-colors">
+                <div class="min-w-0">
                     <p class="text-sm text-white">{{ plan.name }}</p>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ plan.get_yield_display }} · 生产数量：{{ plan.get_quantity_display }}</p>
+                    <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                        <span>良率：{{ plan.get_yield_display }}</span>
+                        <span>数量：{{ plan.get_quantity_display }}</span>
+                        {% if plan.flash_quality %}<span>Flash质量：{{ plan.flash_quality }}</span>{% endif %}
+                        {% if plan.current_software_version %}<span>软件版本：{{ plan.current_software_version }}</span>{% endif %}
+                        {% if plan.production_status %}<span>生产状态：{{ plan.get_production_status_display }}</span>{% endif %}
+                    </div>
+                    {% if plan.remarks %}
+                    <p class="text-xs text-slate-500 mt-1">备注：<span class="text-slate-400">{{ plan.remarks }}</span></p>
+                    {% endif %}
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="{% url 'project:production_plan_update' project.pk plan.pk %}" class="text-xs text-blue-400 hover:text-blue-300 px-2">

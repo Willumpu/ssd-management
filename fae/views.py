@@ -564,17 +564,8 @@ class FAETaskDetailView(LoginRequiredMixin, DetailView):
         abnormals = AbnormalSample.objects.filter(
             models.Q(test_item__fae_tasks=self.object) |
             models.Q(sankey_nodes__fae_task=self.object)
-        ).select_related('customer', 'assignee', 'group', 'test_item').distinct().order_by('-created_at')
+        ).select_related('customer', 'assignee', 'test_item__test_content').distinct().order_by('-created_at')
         
-        grouped = defaultdict(list)
-        ungrouped = []
-        for abn in abnormals:
-            if abn.group:
-                grouped[abn.group].append(abn)
-            else:
-                ungrouped.append(abn)
-        context['grouped_abnormals'] = list(grouped.items())
-        context['ungrouped_abnormals'] = ungrouped
         context['task_abnormals'] = abnormals
         
         return context

@@ -124,16 +124,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 </p>
             </div>
             <div>
-                <p class="text-xs text-slate-500 mb-1">所属组</p>
-                <p class="text-sm text-slate-300">
-                    {% if abnormal.group %}
-                    <a href="{% url 'abnormal:group_detail' abnormal.group.pk %}" class="text-blue-400 hover:text-blue-300">{{ abnormal.group.group_number }}</a>
-                    {% else %}
-                    <span class="text-slate-500">-</span>
-                    {% endif %}
-                </p>
-            </div>
-            <div>
                 <p class="text-xs text-slate-500 mb-1">样品方案</p>
                 <p class="text-sm text-slate-300">
                     {% if abnormal.solution %}

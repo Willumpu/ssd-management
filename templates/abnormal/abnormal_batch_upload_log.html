@@ -1,0 +1,759 @@
+{% extends 'base.html' %}
+
+{% block title %}批量上传日志 - 异常样品管理{% endblock %}
+{% block page_title %}批量上传日志{% endblock %}
+
+{% block content %}
+<div class="space-y-6 animate-slide-in">
+    <!-- 页面标题 -->
+    <div class="flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-white">批量上传日志</h2>
+        <a href="{% url 'abnormal:abnormal_list' %}" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-all border border-slate-700">
+            <i class="fas fa-arrow-left mr-2"></i>返回列表
+        </a>
+    </div>
+
+    <!-- 筛选（独立于上传表单，避免嵌套 form） -->
+    <form method="get" action="{% url 'abnormal:abnormal_batch_upload_log' %}" class="glass rounded-xl border border-slate-700/50 p-4 flex flex-wrap gap-3" id="filterForm">
+        <select name="status" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+            <option value="">全部状态</option>
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <select name="priority" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+            <option value="">全部优先级</option>
+            {% for value, label in priority_choices %}
+            <option value="{{ value }}" {% if current_priority == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="搜索样品编号/客户..." 
+            class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 w-64 placeholder-slate-500">
+        <input type="hidden" name="selected_ids" id="filterSelectedIds" value="{{ selected_ids|join:',' }}">
+        <button type="submit" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all">
+            <i class="fas fa-search"></i>
+        </button>
+    </form>
+
+    <form method="post" action="{% url 'abnormal:abnormal_batch_upload_log' %}" enctype="multipart/form-data" id="batchLogForm">
+        {% csrf_token %}
+
+        <!-- 步骤 1：选择样品 -->
+        <div id="step1Panel" class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="font-semibold text-white"><span class="text-emerald-400 mr-2">1</span>选择要上传的样品</h3>
+                <span id="selectedCount" class="text-xs text-slate-400">已选择 0 个</span>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="flex justify-end">
+                    <button type="button" id="selectAllSamples" class="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-sm transition-all">
+                        全选本页
+                    </button>
+                </div>
+
+                <!-- 样品列表 -->
+                <div class="overflow-hidden rounded-lg border border-slate-800 max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap w-12">
+                                    <input type="checkbox" id="selectAll" class="w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0">
+                                </th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">样品编号</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">客户</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">状态</th>
+                                <th class="px-4 py-3 font-medium whitespace-nowrap">测试项</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800 text-sm">
+                            {% for sample in samples %}
+                            <tr class="hover:bg-slate-800/30 transition-colors sample-row" data-sample-pk="{{ sample.pk }}" data-sample-number="{{ sample.sample_number }}">
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <input type="checkbox" name="sample_ids" value="{{ sample.pk }}" class="sample-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0" {% if sample.pk in selected_ids %}checked{% endif %}>
+                                </td>
+                                <td class="px-4 py-3 mono whitespace-nowrap text-red-400">{{ sample.sample_number }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-slate-300">{{ sample.customer.customer_code }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    {% if sample.status == 'pending_analysis' %}
+                                    <span class="px-2 py-1 rounded text-xs status-pending font-medium">待分析</span>
+                                    {% elif sample.status == 'retesting' %}
+                                    <span class="px-2 py-1 rounded text-xs status-processing font-medium">复测中</span>
+                                    {% elif sample.status == 'resolved' %}
+                                    <span class="px-2 py-1 rounded text-xs status-resolved font-medium">已解决</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-slate-300">{{ sample.test_item.get_test_content_display|default:'-' }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                                    <i class="fas fa-inbox text-4xl mb-4 block"></i>
+                                    <p>暂无异常样品记录</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="button" id="goToStep2" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors">
+                        下一步：选择文件夹 <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 步骤 2：选择文件夹并拖动分类 -->
+        <div id="step2Panel" class="hidden glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="font-semibold text-white"><span class="text-emerald-400 mr-2">2</span>选择本地文件夹并拖动分类</h3>
+                <button type="button" id="backToStep1" class="text-sm text-slate-400 hover:text-white transition-colors">
+                    <i class="fas fa-arrow-left mr-1"></i>返回重选样品
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">日志根文件夹</label>
+                    <button type="button" id="chooseFolderBtn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm border border-slate-700 transition-colors">
+                        <i class="fas fa-folder mr-1"></i>选择本地文件夹
+                    </button>
+                    <p id="fileSelectionSummary" class="text-xs text-slate-500 mt-1">尚未选择文件夹</p>
+                    <input type="file" id="batchLogFiles" name="log_files" webkitdirectory directory style="display:none">
+                </div>
+
+                <div id="batchMatchPanel" class="hidden space-y-4">
+                    <p class="text-xs text-slate-400"><i class="fas fa-hand-pointer mr-1"></i>展开/折叠左侧文件夹；拖动文件夹或文件到右侧样品上方，样品内会展开日志类型选项，拖到对应类型上完成匹配；已匹配内容会显示在样品下方，可点击 × 取消</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- 待匹配文件 -->
+                        <div>
+                            <h4 class="text-sm font-medium text-white mb-2">日志文件夹结构</h4>
+                            <div id="fileTree" class="drop-zone space-y-1 min-h-[120px] p-3 rounded-lg border border-dashed border-slate-600 bg-slate-900/30">
+                                <!-- JS 动态生成 -->
+                            </div>
+                        </div>
+                        <!-- 样品列表 -->
+                        <div>
+                            <h4 class="text-sm font-medium text-white mb-2">已选样品（拖放到这里）</h4>
+                            <div id="sampleList" class="space-y-2">
+                                <p class="text-sm text-slate-500" id="emptySampleHint">请先返回步骤 1 选择样品</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="matchInputs"></div>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm transition-colors">
+                        <i class="fas fa-upload mr-1"></i>开始上传
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.log-file-item, .matched-chip {
+    cursor: grab;
+    user-select: none;
+}
+.log-file-item:active, .matched-chip:active {
+    cursor: grabbing;
+}
+.log-file-item.dragging, .matched-chip.dragging {
+    opacity: 0.5;
+}
+.drop-zone.drag-over, .sample-drop-zone.drag-over {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+.sample-drop-zone.matched {
+    border-color: #059669;
+}
+.tree-node-row {
+    cursor: grab;
+}
+.tree-node-row:active {
+    cursor: grabbing;
+}
+.tree-node-row.dragging {
+    opacity: 0.5;
+}
+.type-options {
+    display: none;
+}
+.type-options.visible {
+    display: flex;
+}
+.type-option {
+    cursor: pointer;
+}
+.type-option.drag-over {
+    background: #10b981;
+    color: #fff;
+    border-color: #10b981;
+}
+.matched-log-item {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+}
+.type-badge {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    border-radius: 999px;
+    padding: 1px 6px;
+    font-size: 10px;
+}
+</style>
+
+<script>
+(function() {
+    const logChoices = [
+        {% for value, label in log_choices %}
+        {value: '{{ value }}', label: '{{ label }}'},
+        {% endfor %}
+    ];
+
+    // 步骤切换
+    const step1Panel = document.getElementById('step1Panel');
+    const step2Panel = document.getElementById('step2Panel');
+    const goToStep2 = document.getElementById('goToStep2');
+    const backToStep1 = document.getElementById('backToStep1');
+    const selectedCountEl = document.getElementById('selectedCount');
+    const emptySampleHint = document.getElementById('emptySampleHint');
+
+    const filterSelectedIds = document.getElementById('filterSelectedIds');
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('input[name="sample_ids"]:checked');
+        selectedCountEl.textContent = '已选择 ' + checked.length + ' 个';
+        if (filterSelectedIds) {
+            filterSelectedIds.value = Array.from(checked).map(function(cb) { return cb.value; }).join(',');
+        }
+        return checked.length;
+    }
+
+    function getSelectedSamples() {
+        return Array.from(document.querySelectorAll('input[name="sample_ids"]:checked')).map(function(cb) {
+            const row = cb.closest('.sample-row');
+            return {
+                pk: cb.value,
+                sampleNumber: row.dataset.sampleNumber
+            };
+        });
+    }
+
+    function renderSelectedSamples() {
+        const sampleList = document.getElementById('sampleList');
+        const selected = getSelectedSamples();
+
+        sampleList.innerHTML = '';
+        if (selected.length === 0) {
+            sampleList.appendChild(emptySampleHint);
+            return;
+        }
+
+        selected.forEach(function(sample) {
+            const zone = document.createElement('div');
+            zone.className = 'sample-drop-zone p-3 rounded-lg border border-slate-700 bg-slate-800/30 transition-colors';
+            zone.dataset.samplePk = sample.pk;
+            zone.dataset.sampleNumber = sample.sampleNumber;
+            zone.innerHTML =
+                '<div class="flex justify-between items-center mb-1">' +
+                    '<span class="text-sm text-slate-300 font-medium">' + sample.sampleNumber + '</span>' +
+                    '<span class="matched-count text-xs text-emerald-400"></span>' +
+                '</div>' +
+                '<div class="matched-files flex flex-col gap-2 mt-1"></div>' +
+                '<div class="type-options flex flex-wrap gap-1 mt-2">' +
+                    logChoices.map(function(c) {
+                        return '<div class="type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="' + c.value + '">' + c.label + '</div>';
+                    }).join('') +
+                '</div>';
+            sampleList.appendChild(zone);
+        });
+
+        bindSampleZones();
+    }
+
+    goToStep2.addEventListener('click', function() {
+        if (updateSelectedCount() === 0) {
+            alert('请至少选择一个样品');
+            return;
+        }
+        renderSelectedSamples();
+        step1Panel.classList.add('hidden');
+        step2Panel.classList.remove('hidden');
+    });
+
+    backToStep1.addEventListener('click', function() {
+        step2Panel.classList.add('hidden');
+        step1Panel.classList.remove('hidden');
+    });
+
+    // 全选
+    document.getElementById('selectAll').addEventListener('change', function() {
+        document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
+            cb.checked = document.getElementById('selectAll').checked;
+        });
+        updateSelectedCount();
+    });
+
+    document.getElementById('selectAllSamples').addEventListener('click', function() {
+        const allChecked = Array.from(document.querySelectorAll('.sample-checkbox')).every(function(cb) { return cb.checked; });
+        document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
+            cb.checked = !allChecked;
+        });
+        updateSelectedCount();
+    });
+
+    document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+    updateSelectedCount();
+
+    // 文件树和拖放
+    const fileInput = document.getElementById('batchLogFiles');
+    const chooseFolderBtn = document.getElementById('chooseFolderBtn');
+    const selectionSummary = document.getElementById('fileSelectionSummary');
+    const batchLogForm = document.getElementById('batchLogForm');
+    const panel = document.getElementById('batchMatchPanel');
+    const fileTree = document.getElementById('fileTree');
+    const matchInputs = document.getElementById('matchInputs');
+    let draggedNode = null;
+
+    if (chooseFolderBtn && fileInput) {
+        chooseFolderBtn.addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+            const files = fileInput.files;
+            if (files && files.length > 0) {
+                const rootName = (files[0].webkitRelativePath || files[0].name).split('/')[0];
+                selectionSummary.textContent = '已选择文件夹：' + rootName + '（共 ' + files.length + ' 个文件）';
+            } else {
+                selectionSummary.textContent = '尚未选择文件夹';
+            }
+            renderTree();
+        });
+    }
+
+    function buildTree(files) {
+        const rootName = files.length > 0 ? (files[0].webkitRelativePath || files[0].name).split('/')[0] : 'root';
+        const root = { name: rootName, type: 'folder', children: {}, fileIndices: [], path: rootName, matchedSample: null, logType: null };
+        Array.from(files).forEach(function(file, index) {
+            const parts = (file.webkitRelativePath || file.name).split('/');
+            let node = root;
+            node.fileIndices.push(index);
+            parts.forEach(function(part, depth) {
+                if (depth === parts.length - 1) {
+                    node.children[part] = {
+                        name: part,
+                        type: 'file',
+                        fileIndex: index,
+                        path: parts.slice(0, depth + 1).join('/'),
+                        parent: node,
+                        matchedSample: null,
+                        logType: null
+                    };
+                } else {
+                    if (!node.children[part]) {
+                        node.children[part] = {
+                            name: part,
+                            type: 'folder',
+                            children: {},
+                            fileIndices: [],
+                            path: parts.slice(0, depth + 1).join('/'),
+                            parent: node,
+                            matchedSample: null,
+                            logType: null
+                        };
+                    }
+                    node = node.children[part];
+                    node.fileIndices.push(index);
+                }
+            });
+        });
+        return root;
+    }
+
+    function getAllFileIndices(node) {
+        const indices = [];
+        if (node.type === 'file') {
+            if (node.fileIndex !== undefined) indices.push(node.fileIndex);
+        } else {
+            node.fileIndices.forEach(function(idx) { indices.push(idx); });
+        }
+        return Array.from(new Set(indices));
+    }
+
+    function renderTree() {
+        fileTree.innerHTML = '';
+        matchInputs.innerHTML = '';
+        document.querySelectorAll('.sample-drop-zone').forEach(function(zone) {
+            zone.querySelector('.matched-files').innerHTML = '';
+            zone.querySelector('.matched-count').textContent = '';
+            zone.classList.remove('matched');
+            zone.querySelector('.type-options').classList.remove('visible');
+        });
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        Array.from(fileInput.files).forEach(function(file, index) {
+            const sampleInput = document.createElement('input');
+            sampleInput.type = 'hidden';
+            sampleInput.name = 'sample_for_' + index;
+            sampleInput.dataset.fileIndex = index;
+            sampleInput.disabled = true;
+            matchInputs.appendChild(sampleInput);
+
+            const typeInput = document.createElement('input');
+            typeInput.type = 'hidden';
+            typeInput.name = 'log_type_for_' + index;
+            typeInput.dataset.fileIndex = index;
+            typeInput.disabled = true;
+            matchInputs.appendChild(typeInput);
+
+            const folderInput = document.createElement('input');
+            folderInput.type = 'hidden';
+            folderInput.name = 'folder_for_' + index;
+            folderInput.dataset.fileIndex = index;
+            folderInput.disabled = true;
+            matchInputs.appendChild(folderInput);
+        });
+
+        const root = buildTree(fileInput.files);
+        fileTree.appendChild(createTreeNode(root, 0));
+        panel.classList.remove('hidden');
+    }
+
+    function createTreeNode(node, depth) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tree-node-wrapper';
+        wrapper.dataset.path = node.path;
+        wrapper.style.marginLeft = depth > 0 ? '1rem' : '0';
+
+        const row = document.createElement('div');
+        row.className = 'tree-node-row log-file-item flex items-center gap-2 px-2 py-1 rounded text-sm text-slate-300 hover:bg-slate-800';
+        row.draggable = true;
+        row.dataset.path = node.path;
+
+        function onDragStart(e) {
+            draggedNode = node;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        function onDragEnd() {
+            row.classList.remove('dragging');
+            draggedNode = null;
+        }
+
+        if (node.type === 'folder') {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'text-xs text-slate-500 focus:outline-none w-4';
+            toggle.innerHTML = '<i class="fas fa-caret-down"></i>';
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                childrenContainer.classList.toggle('hidden');
+                toggle.innerHTML = childrenContainer.classList.contains('hidden') ? '<i class="fas fa-caret-right"></i>' : '<i class="fas fa-caret-down"></i>';
+            });
+            row.appendChild(toggle);
+            const folderIcon = document.createElement('i');
+            folderIcon.className = 'fas fa-folder text-yellow-400';
+            row.appendChild(folderIcon);
+            const folderName = document.createElement('span');
+            folderName.className = 'break-all';
+            folderName.textContent = node.name;
+            row.appendChild(folderName);
+
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'tree-children';
+            Object.values(node.children).forEach(function(child) {
+                childrenContainer.appendChild(createTreeNode(child, depth + 1));
+            });
+            wrapper.appendChild(row);
+            wrapper.appendChild(childrenContainer);
+        } else {
+            const spacer = document.createElement('span');
+            spacer.className = 'w-4';
+            row.appendChild(spacer);
+            const fileIcon = document.createElement('i');
+            fileIcon.className = 'fas fa-file text-blue-400';
+            row.appendChild(fileIcon);
+            const fileName = document.createElement('span');
+            fileName.className = 'break-all';
+            fileName.textContent = node.name;
+            row.appendChild(fileName);
+            wrapper.appendChild(row);
+        }
+
+        row.addEventListener('dragstart', onDragStart);
+        row.addEventListener('dragend', onDragEnd);
+        return wrapper;
+    }
+
+    function getRowByPath(path) {
+        return fileTree.querySelector('.tree-node-row[data-path="' + path + '"]');
+    }
+
+    function getWrapperByPath(path) {
+        return fileTree.querySelector('.tree-node-wrapper[data-path="' + path + '"]');
+    }
+
+    function matchNodeToSample(node, samplePk, logType) {
+        node.matchedSample = samplePk;
+        node.logType = logType;
+        const folderName = node.type === 'folder' ? node.name : '';
+        const indices = getAllFileIndices(node);
+        indices.forEach(function(index) {
+            const sampleInput = matchInputs.querySelector('input[name="sample_for_' + index + '"]');
+            const typeInput = matchInputs.querySelector('input[name="log_type_for_' + index + '"]');
+            const folderInput = matchInputs.querySelector('input[name="folder_for_' + index + '"]');
+            if (sampleInput) {
+                sampleInput.value = samplePk;
+                sampleInput.disabled = false;
+            }
+            if (typeInput) {
+                typeInput.value = logType;
+                typeInput.disabled = false;
+            }
+            if (folderInput) {
+                folderInput.value = folderName;
+                folderInput.disabled = false;
+            }
+        });
+        const row = getRowByPath(node.path);
+        if (row) {
+            row.classList.add('text-emerald-400');
+            row.classList.remove('text-slate-300');
+        }
+        const wrapper = getWrapperByPath(node.path);
+        if (wrapper) {
+            wrapper.classList.add('hidden');
+        }
+        updateMatchedFiles();
+    }
+
+    function unmatchNode(node) {
+        node.matchedSample = null;
+        node.logType = null;
+        const indices = getAllFileIndices(node);
+        indices.forEach(function(index) {
+            const sampleInput = matchInputs.querySelector('input[name="sample_for_' + index + '"]');
+            const typeInput = matchInputs.querySelector('input[name="log_type_for_' + index + '"]');
+            const folderInput = matchInputs.querySelector('input[name="folder_for_' + index + '"]');
+            if (sampleInput) {
+                sampleInput.value = '';
+                sampleInput.disabled = true;
+            }
+            if (typeInput) {
+                typeInput.value = '';
+                typeInput.disabled = true;
+            }
+            if (folderInput) {
+                folderInput.value = '';
+                folderInput.disabled = true;
+            }
+        });
+        const row = getRowByPath(node.path);
+        if (row) {
+            row.classList.remove('text-emerald-400');
+            row.classList.add('text-slate-300');
+        }
+        const wrapper = getWrapperByPath(node.path);
+        if (wrapper) {
+            wrapper.classList.remove('hidden');
+        }
+        updateMatchedFiles();
+    }
+
+    function createMatchedItem(node, logType) {
+        const item = document.createElement('div');
+        item.className = 'matched-log-item text-sm text-slate-200';
+        item.dataset.path = node.path;
+
+        const typeLabel = logType ? logChoices.find(function(c) { return c.value === logType; }).label : '';
+        const isFolder = node.type === 'folder';
+        const fileCount = getAllFileIndices(node).length;
+
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between gap-2';
+        header.innerHTML = '<div class="flex items-center gap-2 min-w-0">' +
+            '<i class="fas ' + (isFolder ? 'fa-folder text-yellow-400' : 'fa-file text-blue-400') + '"></i>' +
+            '<span class="break-all font-medium">' + node.name + '</span>' +
+            '<span class="type-badge">' + typeLabel + '</span>' +
+            '</div>' +
+            '<button type="button" class="unmatch-btn text-slate-500 hover:text-red-400 text-xs px-1"><i class="fas fa-times"></i></button>';
+        item.appendChild(header);
+
+        if (isFolder && fileCount > 0) {
+            const fileNames = getAllFileIndices(node).map(function(idx) {
+                return fileInput.files[idx].name;
+            }).join('、');
+            const detail = document.createElement('div');
+            detail.className = 'pl-5 mt-1 text-xs text-slate-400 break-all';
+            detail.textContent = fileCount + ' 个文件：' + fileNames;
+            item.appendChild(detail);
+        }
+
+        item.draggable = true;
+        item.addEventListener('dragstart', function(e) {
+            draggedNode = node;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', function() {
+            item.classList.remove('dragging');
+            draggedNode = null;
+        });
+
+        item.querySelector('.unmatch-btn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            unmatchNode(node);
+        });
+
+        return item;
+    }
+
+    function updateMatchedFiles() {
+        document.querySelectorAll('.sample-drop-zone').forEach(function(zone) {
+            const samplePk = zone.dataset.samplePk;
+            const container = zone.querySelector('.matched-files');
+            const countEl = zone.querySelector('.matched-count');
+            container.innerHTML = '';
+            let count = 0;
+
+            const matchedMap = {};
+            matchInputs.querySelectorAll('input[name^="sample_for_"]').forEach(function(input) {
+                if (input.value === samplePk) {
+                    const idx = input.dataset.fileIndex;
+                    const typeInput = matchInputs.querySelector('input[name="log_type_for_' + idx + '"]');
+                    matchedMap[idx] = typeInput ? typeInput.value : '';
+                }
+            });
+            const matchedIndices = Object.keys(matchedMap).map(function(k) { return parseInt(k); });
+            if (matchedIndices.length === 0) {
+                countEl.textContent = '';
+                zone.classList.remove('matched');
+                return;
+            }
+
+            const root = buildTree(fileInput.files);
+            const items = [];
+            function walk(n) {
+                const indices = getAllFileIndices(n);
+                if (indices.length === 0) return;
+                const allMatched = indices.every(function(idx) { return matchedIndices.indexOf(idx) !== -1; });
+                if (allMatched) {
+                    const logType = matchedMap[indices[0]];
+                    items.push(createMatchedItem(n, logType));
+                    count += indices.length;
+                } else if (n.type === 'folder') {
+                    Object.values(n.children).forEach(walk);
+                }
+            }
+            Object.values(root.children).forEach(walk);
+
+            items.forEach(function(it) { container.appendChild(it); });
+            countEl.textContent = count > 0 ? '已匹配 ' + count + ' 个文件' : '';
+            if (count > 0) {
+                zone.classList.add('matched');
+            } else {
+                zone.classList.remove('matched');
+            }
+        });
+    }
+
+    function showTypeOptions(zone) {
+        zone.querySelector('.type-options').classList.add('visible');
+    }
+    function hideTypeOptions(zone) {
+        zone.querySelector('.type-options').classList.remove('visible');
+    }
+
+    function bindSampleZones() {
+        document.querySelectorAll('.sample-drop-zone').forEach(function(zone) {
+            zone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                zone.classList.add('drag-over');
+                if (!draggedNode) return;
+                showTypeOptions(zone);
+            });
+            zone.addEventListener('dragleave', function(e) {
+                zone.classList.remove('drag-over');
+                if (!zone.contains(e.relatedTarget)) {
+                    hideTypeOptions(zone);
+                }
+            });
+
+            const options = zone.querySelectorAll('.type-option');
+            options.forEach(function(option) {
+                option.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                    option.classList.add('drag-over');
+                });
+                option.addEventListener('dragleave', function(e) {
+                    e.stopPropagation();
+                    option.classList.remove('drag-over');
+                });
+                option.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    option.classList.remove('drag-over');
+                    hideTypeOptions(zone);
+                    if (!draggedNode) return;
+                    const logType = option.dataset.logType;
+                    matchNodeToSample(draggedNode, zone.dataset.samplePk, logType);
+                });
+            });
+        });
+    }
+
+    // 树形区域拖放（取消匹配）
+    fileTree.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        fileTree.classList.add('drag-over');
+        document.querySelectorAll('.sample-drop-zone').forEach(function(zone) { hideTypeOptions(zone); });
+    });
+    fileTree.addEventListener('dragleave', function() {
+        fileTree.classList.remove('drag-over');
+    });
+    fileTree.addEventListener('drop', function(e) {
+        e.preventDefault();
+        fileTree.classList.remove('drag-over');
+        document.querySelectorAll('.sample-drop-zone').forEach(function(zone) { hideTypeOptions(zone); });
+        if (!draggedNode) return;
+        unmatchNode(draggedNode);
+    });
+
+    // 提交前校验
+    if (batchLogForm) {
+        batchLogForm.addEventListener('submit', function(e) {
+            if (updateSelectedCount() === 0) {
+                e.preventDefault();
+                alert('请至少选择一个样品');
+                return;
+            }
+            if (!fileInput.files || fileInput.files.length === 0) {
+                e.preventDefault();
+                alert('请选择要上传的文件夹');
+                return;
+            }
+            const hasMatch = Array.from(matchInputs.querySelectorAll('input')).some(function(input) {
+                return !input.disabled && input.value;
+            });
+            if (!hasMatch) {
+                e.preventDefault();
+                alert('请至少将一个文件或文件夹匹配到样品');
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -663,7 +663,7 @@
         menu.dataset.nodeType = nodeData.nodeType;
         menu.dataset.testItemId = nodeData.testItemId || '';
 
-        // 控制"创建异常样品组"按钮显示（仅子类节点）
+        // 控制"批量创建异常样品"按钮显示（仅子类节点）
         const createGroupBtn = document.getElementById('menu-create-group');
         if (createGroupBtn) {
             if (nodeData.nodeType === 'subcategory') {
@@ -1270,10 +1270,8 @@
         document.getElementById('abnormal-source-id').value = nodeId;
         document.getElementById('abnormal-create-link').href = `/abnormal/create/?sankey_node=${nodeId}&fae_task_id={{ fae_task.id }}`;
         document.getElementById('abnormal-existing-list').innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
-        document.getElementById('abnormal-existing-groups').innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
         showModal('modal-add-abnormal');
         loadExistingAbnormals(nodeId);
-        loadExistingGroups(nodeId);
     }
 
     async function loadExistingAbnormals(nodeId) {
@@ -1307,67 +1305,22 @@
         }
     }
 
-    async function loadExistingGroups(nodeId) {
-        const list = document.getElementById('abnormal-existing-groups');
-        try {
-            const res = await fetch(`/abnormal/api/groups/?fae_task_id={{ fae_task.id }}`);
-            if (!res.ok) {
-                const text = await res.text();
-                console.error('API 错误:', res.status, text.substring(0, 200));
-                list.innerHTML = `<p class="text-xs text-red-400 text-center py-2">加载失败 (${res.status})</p>`;
-                return;
-            }
-            const data = await res.json();
-            const all = data.groups || [];
-            if (!all.length) {
-                list.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">暂无可用异常样品组</p>';
-                return;
-            }
-            list.innerHTML = all.map(g => `
-                <label class="flex items-center gap-2 p-2 rounded bg-slate-800/50 border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors">
-                    <input type="checkbox" name="existing_abnormal_group" value="${g.id}" class="w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800">
-                    <div class="flex-1 min-w-0">
-                        <div class="text-xs font-medium text-yellow-400 truncate">${g.group_number}</div>
-                        <div class="text-[10px] text-slate-500">${g.status_display || g.status || ''} · ${g.sample_count}个样品</div>
-                    </div>
-                </label>
-            `).join('');
-        } catch (e) {
-            console.error('加载异常样品组列表失败:', e);
-            list.innerHTML = '<p class="text-xs text-red-400 text-center py-2">加载失败</p>';
-        }
-    }
-
     async function submitAttachAbnormals() {
         const nodeId = document.getElementById('abnormal-source-id').value;
         const checkedSamples = document.querySelectorAll('input[name="existing_abnormal"]:checked');
-        const checkedGroups = document.querySelectorAll('input[name="existing_abnormal_group"]:checked');
         
-        if (!checkedSamples.length && !checkedGroups.length) {
+        if (!checkedSamples.length) {
             closeModal('modal-add-abnormal');
             return;
         }
         
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        
-        // 先处理单个异常样品
-        if (checkedSamples.length > 0) {
-            const ids = Array.from(checkedSamples).map(c => c.value);
-            await fetch(`/testing/sankey/nodes/${nodeId}/abnormal/attach/`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
-                body: JSON.stringify({abnormal_ids: ids})
-            });
-        }
-        
-        // 再处理异常样品组
-        for (const groupCheckbox of checkedGroups) {
-            await fetch(`/testing/sankey/nodes/${nodeId}/abnormal/attach/`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
-                body: JSON.stringify({abnormal_group_id: groupCheckbox.value})
-            });
-        }
+        const ids = Array.from(checkedSamples).map(c => c.value);
+        await fetch(`/testing/sankey/nodes/${nodeId}/abnormal/attach/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify({abnormal_ids: ids})
+        });
         
         closeModal('modal-add-abnormal');
         if (window.loadChart) window.loadChart();
@@ -1383,7 +1336,7 @@
         openAddAbnormalModal(nodeId, nodeName);
     }
 
-    // ==================== 创建异常样品组 ====================
+    // ==================== 批量创建异常样品 ====================
     function showCreateGroupModal() {
         const menu = document.getElementById('node-context-menu');
         const nodeId = menu.dataset.nodeId;
@@ -1397,7 +1350,7 @@
             sankey_node: String(nodeId),
             total_count: String(quantity),
         });
-        window.open(`/abnormal/groups/create/?${params.toString()}`, '_blank');
+        window.open(`/abnormal/batch-create/?${params.toString()}`, '_blank');
     }
 </script>
 {% endblock %}
@@ -1457,7 +1410,7 @@
                     <i class="fas fa-exclamation-triangle mr-2"></i>添加异常样品
                 </button>
                 <button id="menu-create-group" onclick="showCreateGroupModal()" class="hidden w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-800 transition-colors">
-                    <i class="fas fa-object-group mr-2"></i>创建异常样品组
+                    <i class="fas fa-layer-group mr-2"></i>批量创建异常样品
                 </button>
                 <button onclick="showSplitModal()" class="w-full text-left px-4 py-2 text-sm text-orange-400 hover:bg-slate-800 transition-colors">
                     <i class="fas fa-code-branch mr-2"></i>拆分子类
@@ -1544,12 +1497,7 @@
                     <p class="text-xs text-slate-500 text-center py-2">加载中...</p>
                 </div>
             </div>
-            <div class="border-t border-slate-800 pt-3">
-                <p class="text-xs text-slate-500 mb-2">从已有异常样品组中选择（将绑定组内所有样品）：</p>
-                <div id="abnormal-existing-groups" class="max-h-40 overflow-y-auto space-y-1">
-                    <p class="text-xs text-slate-500 text-center py-2">加载中...</p>
-                </div>
-            </div>
+
         </div>
         <div class="flex gap-3">
             <button onclick="submitAttachAbnormals()" class="flex-1 px-4 py-2.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm transition-all">确认添加</button>

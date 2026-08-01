@@ -30,6 +30,7 @@ class Project(models.Model):
     status = models.CharField('项目状态', max_length=20, choices=STATUS_CHOICES, default='active')
     phase = models.CharField('项目阶段', max_length=20, choices=PHASE_CHOICES, default='import')
     sample_total_quantity = models.PositiveIntegerField('样品总数量', default=0, blank=True)
+    nand_model = models.CharField('NAND型号', max_length=100, blank=True)
     description = models.TextField('项目描述', blank=True)
     created_by = models.ForeignKey(
         'fae.User', on_delete=models.CASCADE, verbose_name='创建人',
@@ -88,6 +89,14 @@ class ProductionPlan(models.Model):
         ('calculated', '计算良率'),
     ]
 
+    PRODUCTION_STATUS_CHOICES = [
+        ('testing', '测试中'),
+        ('debugging', '调试中'),
+        ('in_production', '生产中'),
+        ('delivered', '已交付'),
+        ('on_hold', '暂停'),
+    ]
+
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, verbose_name='所属项目',
         related_name='production_plans'
@@ -104,6 +113,12 @@ class ProductionPlan(models.Model):
         '生产数量', default=0, blank=True,
         help_text='单位：颗'
     )
+    flash_quality = models.CharField('Flash质量', max_length=100, blank=True)
+    current_software_version = models.CharField('当前软件版本', max_length=100, blank=True)
+    production_status = models.CharField(
+        '生产状态', max_length=20, choices=PRODUCTION_STATUS_CHOICES, blank=True
+    )
+    remarks = models.TextField('备注', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 

@@ -19,7 +19,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = Project.objects.select_related('customer', 'created_by')
+        queryset = Project.objects.select_related('customer', 'created_by').prefetch_related('production_plans')
         status = self.request.GET.get('status')
         search = self.request.GET.get('search')
         if status:

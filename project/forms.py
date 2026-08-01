@@ -7,7 +7,7 @@ class ProjectForm(forms.ModelForm):
     """项目表单"""
     class Meta:
         model = Project
-        fields = ['name', 'customer', 'status', 'phase', 'sample_total_quantity', 'description']
+        fields = ['name', 'customer', 'status', 'phase', 'sample_total_quantity', 'nand_model', 'description']
         widgets = {
             'name': forms.TextInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '项目名称'}
@@ -23,6 +23,9 @@ class ProjectForm(forms.ModelForm):
             ),
             'sample_total_quantity': forms.NumberInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0}
+            ),
+            'nand_model': forms.TextInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': 'NAND型号'}
             ),
 
             'description': forms.Textarea(
@@ -40,7 +43,7 @@ class ProductionPlanForm(forms.ModelForm):
     """生产方案表单"""
     class Meta:
         model = ProductionPlan
-        fields = ['name', 'yield_value', 'yield_type', 'production_quantity']
+        fields = ['name', 'yield_value', 'yield_type', 'production_quantity', 'flash_quality', 'current_software_version', 'production_status', 'remarks']
         widgets = {
             'name': forms.TextInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '方案名称'}
@@ -53,5 +56,17 @@ class ProductionPlanForm(forms.ModelForm):
             ),
             'production_quantity': forms.NumberInput(
                 attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'min': 0}
+            ),
+            'flash_quality': forms.TextInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': 'Flash质量'}
+            ),
+            'current_software_version': forms.TextInput(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '当前软件版本'}
+            ),
+            'production_status': forms.Select(
+                attrs={'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full'}
+            ),
+            'remarks': forms.Textarea(
+                attrs={'rows': 3, 'class': 'bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 w-full', 'placeholder': '备注（可选）'}
             ),
         }

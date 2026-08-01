@@ -5,6 +5,7 @@
 
 {% block content %}
 <div class="space-y-6 animate-slide-in">
+    <!-- Header -->
     <div class="flex justify-between items-center">
         <h2 class="text-xl font-semibold text-white">项目列表</h2>
         <a href="{% url 'project:project_create' %}" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-amber-600/20">
@@ -13,7 +14,7 @@
         </a>
     </div>
 
-    <!-- 筛选和搜索 -->
+    <!-- Filter & Search -->
     <div class="glass rounded-xl p-4 border border-slate-700/50">
         <div class="flex flex-wrap gap-4 justify-between items-center">
             <div class="flex flex-wrap gap-2">
@@ -42,71 +43,191 @@
         </div>
     </div>
 
-    <!-- 桌面端列表 -->
-    <div class="hidden lg:block glass rounded-xl border border-slate-700/50 overflow-hidden">
-        <table class="w-full text-left">
-            <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
-                <tr>
-                    <th class="px-6 py-4 font-medium">项目编号</th>
-                    <th class="px-6 py-4 font-medium">项目名称</th>
-                    <th class="px-6 py-4 font-medium">关联客户</th>
-                    <th class="px-6 py-4 font-medium">状态</th>
-                    <th class="px-6 py-4 font-medium text-right">关联条目</th>
-                    <th class="px-6 py-4 font-medium">创建时间</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800 text-sm">
-                {% for project in projects %}
-                <tr class="table-row-hover border-l-2 border-transparent hover:border-amber-500 cursor-pointer"
-                    onclick="window.location.href='{% url 'project:project_detail' project.pk %}'">
-                    <td class="px-6 py-4 mono text-amber-400">{{ project.project_number }}</td>
-                    <td class="px-6 py-4 text-white font-medium">{{ project.name }}</td>
-                    <td class="px-6 py-4 text-slate-400">{{ project.customer.customer_code|default:'-' }}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 rounded text-xs border
-                            {% if project.status == 'active' %}bg-green-500/20 text-green-400 border-green-500/30{% elif project.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
-                            {{ project.get_status_display }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 text-right">
-                        <span class="text-white font-bold">{{ project.get_total_items }}</span>
-                    </td>
-                    <td class="px-6 py-4 text-slate-500">{{ project.created_at|date:'Y-m-d' }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="px-6 py-12 text-center text-slate-500">
-                        <i class="fas fa-inbox text-4xl mb-4 block"></i>
-                        <p>暂无项目</p>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Desktop Cards -->
+    <div class="hidden lg:block space-y-4">
+        {% for project in projects %}
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <!-- Title bar -->
+            <div class="px-5 py-3 bg-slate-900/60 border-b border-slate-700/50 flex justify-between items-center gap-4">
+                <div class="text-sm text-amber-400 mono font-medium">{{ project.project_number }}</div>
+                <a href="{% url 'project:project_detail' project.pk %}" class="flex-shrink-0 text-xs text-slate-400 hover:text-white transition-colors">
+                    查看详情 <i class="fas fa-chevron-right ml-1"></i>
+                </a>
+            </div>
+
+            <!-- Meta bar -->
+            <div class="px-5 py-2.5 bg-blue-900/15 border-b border-slate-700/50 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">客户</span>
+                    <span class="text-slate-200 font-medium">{{ project.customer.customer_code|default:'-' }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">NAND型号</span>
+                    <span class="text-slate-200 font-medium">{{ project.nand_model|default:'-' }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">项目阶段</span>
+                    <span class="text-slate-200">{{ project.get_phase_display|default:'-' }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">样品总数</span>
+                    <span class="text-slate-200 font-medium">{{ project.sample_total_quantity|default:'0' }}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">项目状态</span>
+                    <span class="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-medium border
+                        {% if project.status == 'active' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% elif project.status == 'completed' %}bg-blue-500/10 text-blue-400 border-blue-500/20{% else %}bg-amber-500/10 text-amber-400 border-amber-500/20{% endif %}">
+                        <span class="w-1.5 h-1.5 rounded-full mr-1
+                            {% if project.status == 'active' %}bg-emerald-400{% elif project.status == 'completed' %}bg-blue-400{% else %}bg-amber-400{% endif %}"></span>
+                        {{ project.get_status_display }}
+                    </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 text-xs">开始时间</span>
+                    <span class="text-slate-300">{{ project.created_at|date:'Y/m/d' }}</span>
+                </div>
+            </div>
+
+            <!-- Production plans table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left min-w-[780px]">
+                    <thead class="bg-slate-900/40 text-slate-400 text-xs">
+                        <tr>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-28">生产方案</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-32">Flash质量</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-24 text-center">生产数量</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-48">良率类型/良率</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-28">当前软件版本</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap w-24">生产状态</th>
+                            <th class="px-4 py-2 font-medium whitespace-nowrap">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        {% for plan in project.production_plans.all %}
+                        <tr class="hover:bg-slate-800/30 transition-colors">
+                            <td class="px-4 py-2 text-white font-medium">{{ plan.name }}</td>
+                            <td class="px-4 py-2 text-slate-300">{{ plan.flash_quality|default:'-' }}</td>
+                            <td class="px-4 py-2 text-center text-slate-300">{{ plan.production_quantity|default:'-' }}</td>
+                            <td class="px-4 py-2 text-slate-300 whitespace-nowrap">
+                                {% if plan.yield_type or plan.yield_value is not None %}
+                                    {{ plan.get_yield_type_display|default:'-' }} / {{ plan.yield_value|default:'-' }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-slate-300">{{ plan.current_software_version|default:'-' }}</td>
+                            <td class="px-4 py-2">
+                                {% if plan.production_status %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">
+                                    {{ plan.get_production_status_display }}
+                                </span>
+                                {% else %}
+                                <span class="text-slate-600">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-slate-400 text-xs truncate max-w-xs" title="{{ plan.remarks }}">{{ plan.remarks|default:'-' }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-4 py-3 text-center text-slate-600 text-xs">暂无生产方案</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-16 text-slate-500 glass rounded-xl border border-slate-700/50">
+            <i class="fas fa-inbox text-4xl mb-4 block text-slate-600"></i>
+            <p>暂无项目</p>
+        </div>
+        {% endfor %}
     </div>
 
-    <!-- 移动端 -->
-    <div class="lg:hidden space-y-3">
+    <!-- Mobile Cards -->
+    <div class="lg:hidden space-y-4">
         {% for project in projects %}
-        <a href="{% url 'project:project_detail' project.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-amber-500/30 transition-all">
-            <div class="flex justify-between items-start">
-                <div>
-                    <div class="text-sm text-white font-medium">{{ project.name }}</div>
-                    <div class="text-xs text-slate-500 mono mt-0.5">{{ project.project_number }}</div>
+        <div class="glass rounded-xl border border-slate-700/50 overflow-hidden">
+            <div class="p-4 border-b border-slate-700/50">
+                <div class="flex justify-between items-center gap-3">
+                    <div class="text-sm text-amber-400 mono font-medium">{{ project.project_number }}</div>
+                    <span class="inline-flex items-center whitespace-nowrap flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-medium border
+                        {% if project.status == 'active' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% elif project.status == 'completed' %}bg-blue-500/10 text-blue-400 border-blue-500/20{% else %}bg-amber-500/10 text-amber-400 border-amber-500/20{% endif %}">
+                        <span class="w-1.5 h-1.5 rounded-full mr-1
+                            {% if project.status == 'active' %}bg-emerald-400{% elif project.status == 'completed' %}bg-blue-400{% else %}bg-amber-400{% endif %}"></span>
+                        {{ project.get_status_display }}
+                    </span>
                 </div>
-                <span class="px-2 py-0.5 rounded text-xs border
-                    {% if project.status == 'active' %}bg-green-500/20 text-green-400 border-green-500/30{% elif project.status == 'completed' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
-                    {{ project.get_status_display }}
-                </span>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div class="text-slate-500 mb-0.5">客户</div>
+                        <div class="text-slate-200 font-medium truncate">{{ project.customer.customer_code|default:'-' }}</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div class="text-slate-500 mb-0.5">NAND型号</div>
+                        <div class="text-slate-200 font-medium truncate">{{ project.nand_model|default:'-' }}</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div class="text-slate-500 mb-0.5">项目阶段</div>
+                        <div class="text-slate-200 font-medium">{{ project.get_phase_display|default:'-' }}</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div class="text-slate-500 mb-0.5">样品总数</div>
+                        <div class="text-slate-200 font-medium">{{ project.sample_total_quantity|default:'0' }}</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg px-3 py-2">
+                        <div class="text-slate-500 mb-0.5">开始时间</div>
+                        <div class="text-slate-200 font-medium">{{ project.created_at|date:'Y/m/d' }}</div>
+                    </div>
+                </div>
             </div>
-            <div class="flex justify-between mt-2 text-xs text-slate-400">
-                <span>{{ project.customer.customer_code|default:'无关联客户' }}</span>
-                <span>{{ project.get_total_items }} 个条目</span>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left min-w-[560px]">
+                    <thead class="bg-slate-900/40 text-slate-400">
+                        <tr>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-24">生产方案</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-28">Flash质量</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-20 text-center">数量</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-40">良率类型/良率</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-24">软件版本</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap w-20">状态</th>
+                            <th class="px-3 py-2 font-medium whitespace-nowrap">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        {% for plan in project.production_plans.all %}
+                        <tr>
+                            <td class="px-3 py-2 text-white font-medium">{{ plan.name }}</td>
+                            <td class="px-3 py-2 text-slate-300">{{ plan.flash_quality|default:'-' }}</td>
+                            <td class="px-3 py-2 text-center text-slate-300">{{ plan.production_quantity|default:'-' }}</td>
+                            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">
+                                {% if plan.yield_type or plan.yield_value is not None %}
+                                    {{ plan.get_yield_type_display|default:'-' }} / {{ plan.yield_value|default:'-' }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-3 py-2 text-slate-300">{{ plan.current_software_version|default:'-' }}</td>
+                            <td class="px-3 py-2 text-slate-300 whitespace-nowrap">{{ plan.get_production_status_display|default:'-' }}</td>
+                            <td class="px-3 py-2 text-slate-400 truncate max-w-[100px]" title="{{ plan.remarks }}">{{ plan.remarks|default:'-' }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-4 py-3 text-center text-slate-600">暂无生产方案</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-        </a>
+            <div class="p-3 border-t border-slate-700/50">
+                <a href="{% url 'project:project_detail' project.pk %}" class="block text-center text-xs text-slate-400 hover:text-white transition-colors">
+                    查看详情 <i class="fas fa-chevron-right ml-1"></i>
+                </a>
+            </div>
+        </div>
         {% empty %}
         <div class="text-center py-12 text-slate-500">
-            <i class="fas fa-inbox text-4xl mb-4 block"></i>
+            <i class="fas fa-inbox text-4xl mb-4 block text-slate-600"></i>
             <p>暂无项目</p>
         </div>
         {% endfor %}

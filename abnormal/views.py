@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.http import JsonResponse, HttpResponse
 from .models import AbnormalSample, AbnormalSampleGroup, TestRecordEntry, AbnormalLogFile, AbnormalComment, AbnormalLog
-from .forms import AbnormalCommentForm, AbnormalSampleForm, AbnormalSampleGroupForm
+from .forms import AbnormalCommentForm, AbnormalSampleForm, AbnormalSampleBatchCreateForm
 from fae.models import Customer, User
 from testing.models import TestItem
 
@@ -24,9 +24,10 @@ class AbnormalSampleListView(LoginRequiredMixin, ListView):
     model = AbnormalSample
     template_name = 'abnormal/abnormal_list.html'
     context_object_name = 'abnormals'
+    paginate_by = 20
     
     def get_queryset(self):
-        queryset = AbnormalSample.objects.all().select_related('customer', 'assignee')
+        queryset = AbnormalSample.objects.all().select_related('customer', 'assignee', 'solution', 'test_item__test_content')
         
         status = self.request.GET.get('status')
         priority = self.request.GET.get('priority')
@@ -56,19 +57,6 @@ class AbnormalSampleListView(LoginRequiredMixin, ListView):
         context['pending_count'] = AbnormalSample.objects.filter(status='pending_analysis').count()
         context['processing_count'] = AbnormalSample.objects.filter(status='retesting').count()
         context['resolved_count'] = AbnormalSample.objects.filter(status='resolved').count()
-        
-        # 按异常样品组分组（用于折叠展示）
-        from collections import defaultdict
-        queryset = self.get_queryset()
-        grouped = defaultdict(list)
-        ungrouped = []
-        for sample in queryset:
-            if sample.group:
-                grouped[sample.group].append(sample)
-            else:
-                ungrouped.append(sample)
-        context['grouped_abnormals'] = list(grouped.items())
-        context['ungrouped_abnormals'] = ungrouped
         
         return context
 
@@ -248,46 +236,11 @@ class AbnormalSampleCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy('abnormal:abnormal_detail', kwargs={'pk': self.object.pk})
 
 
-class AbnormalSampleGroupListView(LoginRequiredMixin, ListView):
-    """异常样品组列表"""
-    model = AbnormalSampleGroup
-    template_name = 'abnormal/group_list.html'
-    context_object_name = 'groups'
-    paginate_by = 20
-    
-    def get_queryset(self):
-        queryset = AbnormalSampleGroup.objects.all().select_related('customer', 'assignee')
-        
-        status = self.request.GET.get('status')
-        priority = self.request.GET.get('priority')
-        search = self.request.GET.get('search')
-        
-        if status:
-            queryset = queryset.filter(status=status)
-        if priority:
-            queryset = queryset.filter(priority=priority)
-        if search:
-            queryset = queryset.filter(
-                models.Q(group_number__icontains=search) |
-                models.Q(customer__customer_code__icontains=search)
-            )
-        
-        return queryset.order_by('-created_at')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['status_choices'] = AbnormalSampleGroup.STATUS_CHOICES
-        context['priority_choices'] = AbnormalSampleGroup.PRIORITY_CHOICES
-        context['current_status'] = self.request.GET.get('status', '')
-        context['search_query'] = self.request.GET.get('search', '')
-        return context
-
-
-class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
-    """创建异常样品组（自动批量生成组员）"""
-    model = AbnormalSampleGroup
-    template_name = 'abnormal/group_form.html'
-    form_class = AbnormalSampleGroupForm
+class AbnormalSampleBatchCreateView(LoginRequiredMixin, CreateView):
+    """批量创建异常样品"""
+    model = AbnormalSample
+    template_name = 'abnormal/abnormal_batch_create.html'
+    form_class = AbnormalSampleBatchCreateForm
     
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
@@ -298,7 +251,6 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
             from testing.models import TestItem
             try:
                 test_item = TestItem.objects.select_related('customer', 'project', 'solution').get(pk=test_item_id)
-                # 自动填充并限制字段
                 if test_item.customer:
                     form.fields['customer'].queryset = form.fields['customer'].queryset.filter(pk=test_item.customer.pk)
                     form.initial['customer'] = test_item.customer.pk
@@ -308,10 +260,8 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
                 if test_item.solution:
                     form.fields['solution'].queryset = form.fields['solution'].queryset.filter(pk=test_item.solution.pk)
                     form.initial['solution'] = test_item.solution.pk
-                from testing.models import TestItem as TestItemModel
-                form.fields['test_item'].queryset = TestItemModel.objects.filter(pk=test_item.pk)
+                form.fields['test_item'].queryset = TestItem.objects.filter(pk=test_item.pk)
                 form.initial['test_item'] = test_item.pk
-                # 自动填充负责人为测试项跟踪人
                 if test_item.tracker:
                     form.fields['assignee'].queryset = form.fields['assignee'].queryset.filter(pk=test_item.tracker.pk)
                     form.initial['assignee'] = test_item.tracker.pk
@@ -325,40 +275,32 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
             from testing.models import SankeyNode, TestItem
             try:
                 node = SankeyNode.objects.select_related('test_item__customer', 'test_item__project', 'test_item__solution').get(pk=sankey_node_id)
-                # 如果是子类节点且没有直接关联测试项，去上游节点查找
                 target_node = node
                 if node.node_type == 'subcategory' and not node.test_item:
                     upstream_edge = node.incoming_edges.select_related('source_node__test_item__customer', 'source_node__test_item__project', 'source_node__test_item__solution').first()
                     if upstream_edge and upstream_edge.source_node:
                         target_node = upstream_edge.source_node
                 
-                # 自动填充客户
                 if target_node.test_item and target_node.test_item.customer:
                     form.fields['customer'].queryset = form.fields['customer'].queryset.filter(pk=target_node.test_item.customer.pk)
                     form.initial['customer'] = target_node.test_item.customer.pk
-                # 自动填充项目
                 if target_node.test_item and target_node.test_item.project:
                     form.fields['project'].queryset = form.fields['project'].queryset.filter(pk=target_node.test_item.project.pk)
                     form.initial['project'] = target_node.test_item.project.pk
-                # 自动填充方案
                 if target_node.test_item and target_node.test_item.solution:
                     form.fields['solution'].queryset = form.fields['solution'].queryset.filter(pk=target_node.test_item.solution.pk)
                     form.initial['solution'] = target_node.test_item.solution.pk
-                # 自动填充测试项
                 if target_node.test_item:
                     form.fields['test_item'].queryset = TestItem.objects.filter(pk=target_node.test_item.pk)
                     form.initial['test_item'] = target_node.test_item.pk
-                    # 自动填充负责人为测试项跟踪人
                     if target_node.test_item.tracker:
                         form.fields['assignee'].queryset = form.fields['assignee'].queryset.filter(pk=target_node.test_item.tracker.pk)
                         form.initial['assignee'] = target_node.test_item.tracker.pk
-                # 自动填充数量（子类节点的样品数量）
                 total_count = self.request.GET.get('total_count')
                 if total_count:
                     form.initial['total_count'] = int(total_count)
                 elif node.quantity and node.quantity > 0:
                     form.initial['total_count'] = node.quantity
-                # 子类节点/异常分类节点：自动将分类原因预设为异常概述
                 if node.node_type in ('subcategory', 'abnormal_category') and node.category_reason:
                     form.initial['abnormal_summary'] = node.category_reason
                 form.auto_from_sankey_node = True
@@ -368,299 +310,151 @@ class AbnormalSampleGroupCreateView(LoginRequiredMixin, CreateView):
         return form
     
     def form_valid(self, form):
-        form.instance.created_by = self.request.user
         total_count = form.cleaned_data.get('total_count', 1)
+        created_samples = []
         
-        # 先保存组
-        response = super().form_valid(form)
-        group = self.object
-        
-        # 批量创建异常样品
         for i in range(total_count):
             sample = AbnormalSample(
-                customer=group.customer,
-                project=group.project,
-                solution=group.solution,
-                priority=group.priority,
-                status=group.status,
-                assignee=group.assignee,
-                test_item=group.test_item,
-                group=group,
-                abnormal_summary=group.abnormal_summary,
-                abnormal_description=group.abnormal_description,
+                customer=form.cleaned_data.get('customer'),
+                project=form.cleaned_data.get('project'),
+                solution=form.cleaned_data.get('solution'),
+                priority=form.cleaned_data.get('priority', 'normal'),
+                status=form.cleaned_data.get('status', 'pending_analysis'),
+                assignee=form.cleaned_data.get('assignee'),
+                test_item=form.cleaned_data.get('test_item'),
+                abnormal_summary=form.cleaned_data.get('abnormal_summary', ''),
+                abnormal_description=form.cleaned_data.get('abnormal_description', ''),
                 created_by=self.request.user,
             )
             sample.save()
+            created_samples.append(sample)
             
-            # 如果组关联了测试项，自动创建关联
-            if group.test_item:
+            # 如果关联了测试项，自动创建关联
+            if sample.test_item:
                 from testing.models import TestAbnormalRelation
                 TestAbnormalRelation.objects.get_or_create(
-                    test_item=group.test_item,
+                    test_item=sample.test_item,
                     abnormal_sample=sample
                 )
+            
+            # 创建操作日志
+            AbnormalLog.objects.create(
+                abnormal_sample=sample,
+                operator=self.request.user,
+                action='批量创建异常样品',
+                new_status=sample.status,
+                comment=f'客户: {sample.customer.customer_code}'
+            )
         
-        # 更新组的实际数量
-        group.total_count = group.samples.count()
-        group.save(update_fields=['total_count'])
-        
-        # 如果从桑基图节点跳转过来，将组内所有样品绑定到该节点
+        # 如果从桑基图节点跳转过来，将所有样品绑定到该节点
         sankey_node_id = self.request.GET.get('sankey_node') or self.request.POST.get('sankey_node')
         if sankey_node_id:
             from testing.models import SankeyNode
             try:
                 node = SankeyNode.objects.get(pk=sankey_node_id)
-                for sample in group.samples.all():
+                for sample in created_samples:
                     node.abnormal_samples.add(sample)
             except SankeyNode.DoesNotExist:
                 pass
         
-        messages.success(self.request, f'异常样品组 {group.group_number} 创建成功，已自动生成 {total_count} 个样品')
-        return response
-    
-    def get_success_url(self):
-        return reverse_lazy('abnormal:group_detail', kwargs={'pk': self.object.pk})
+        messages.success(self.request, f'成功批量创建 {len(created_samples)} 个异常样品')
+        return redirect('abnormal:abnormal_list')
 
 
-class AbnormalSampleGroupDetailView(LoginRequiredMixin, DetailView):
-    """异常样品组详情"""
-    model = AbnormalSampleGroup
-    template_name = 'abnormal/group_detail.html'
-    context_object_name = 'group'
+class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
+    """批量上传日志文件到多个异常样品（先选择样品，再选文件夹，拖动分类）"""
+    template_name = 'abnormal/abnormal_batch_upload_log.html'
     
-    def get_queryset(self):
-        return super().get_queryset().select_related(
-            'customer', 'test_item', 'solution', 'assignee', 'created_by'
-        )
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['samples'] = self.object.samples.select_related('assignee').all()
-        from fae.models import User
-        context['assignee_choices'] = User.objects.filter(role__in=['fae', 'fae_leader']).order_by('username')
-        context['log_choices'] = AbnormalSample.LOG_CHOICES
-        return context
-
-
-class AbnormalSampleGroupUpdateView(LoginRequiredMixin, UpdateView):
-    """更新异常样品组"""
-    model = AbnormalSampleGroup
-    template_name = 'abnormal/group_form.html'
-    form_class = AbnormalSampleGroupForm
-    
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        # 编辑时显示数量，允许修改
-        if self.object.pk:
-            current_count = self.object.samples.count()
-            form.fields['total_count'].widget = forms.NumberInput(
-                attrs={'min': 1, 'class': 'w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50'}
-            )
-            form.fields['total_count'].help_text = f'当前有 {current_count} 个样品，减少时会自动删除最后创建的未编辑样品'
-        return form
-    
-    def form_valid(self, form):
-        group = self.object
-        old_count = group.samples.count()
-        new_count = form.cleaned_data.get('total_count', old_count)
+    def get(self, request):
+        queryset = AbnormalSample.objects.all().select_related(
+            'customer', 'assignee', 'solution', 'test_item__test_content'
+        ).order_by('-created_at')
         
-        response = super().form_valid(form)
+        # 支持筛选和搜索
+        status = request.GET.get('status')
+        priority = request.GET.get('priority')
+        search = request.GET.get('search')
+        selected_ids_raw = request.GET.get('selected_ids', '')
+        # 兼容逗号分隔的 selected_ids
+        selected_ids = [x.strip() for x in selected_ids_raw.split(',') if x.strip()]
         
-        # 处理数量增加：自动创建新样品
-        if new_count > old_count:
-            added = 0
-            for i in range(new_count - old_count):
-                sample = AbnormalSample(
-                    customer=group.customer,
-                    project=group.project,
-                    solution=group.solution,
-                    priority=group.priority,
-                    status=group.status,
-                    assignee=group.assignee,
-                    test_item=group.test_item,
-                    group=group,
-                    abnormal_summary=group.abnormal_summary,
-                    abnormal_description=group.abnormal_description,
-                    created_by=self.request.user,
-                )
-                sample.save()
-                
-                # 如果组关联了测试项，自动创建关联
-                if group.test_item:
-                    from testing.models import TestAbnormalRelation
-                    TestAbnormalRelation.objects.get_or_create(
-                        test_item=group.test_item,
-                        abnormal_sample=sample
-                    )
-                added += 1
-            
-            # 更新组的实际数量
-            group.total_count = group.samples.count()
-            group.save(update_fields=['total_count'])
-            
-            messages.success(
-                self.request,
-                f'异常样品组 {group.group_number} 更新成功，已新增 {added} 个样品'
+        if status:
+            queryset = queryset.filter(status=status)
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        if search:
+            queryset = queryset.filter(
+                models.Q(sample_number__icontains=search) |
+                models.Q(customer__customer_code__icontains=search) |
+                models.Q(abnormal_description__icontains=search)
             )
         
-        # 处理数量减少：自动删除最后创建的未编辑样品
-        elif new_count < old_count:
-            need_delete = old_count - new_count
-            # 找出未编辑过的样品，按创建时间倒序（最后创建的优先删除）
-            deletable = group.samples.filter(
-                is_edited_individually=False
-            ).order_by('-created_at')
-            
-            deleted = 0
-            skipped = 0
-            for sample in deletable[:need_delete]:
-                sample.delete()
-                deleted += 1
-            
-            # 更新组的实际数量
-            group.total_count = group.samples.count()
-            group.save(update_fields=['total_count'])
-            
-            remaining = need_delete - deleted
-            if remaining > 0:
-                messages.warning(
-                    self.request,
-                    f'异常样品组 {group.group_number} 已更新，删除了 {deleted} 个未编辑样品，'
-                    f'还有 {remaining} 个需减少但因已被单独编辑而保留，请到详情页手动处理'
-                )
-            else:
-                messages.success(
-                    self.request,
-                    f'异常样品组 {group.group_number} 更新成功，已删除 {deleted} 个样品'
-                )
-        
-        else:
-            messages.success(self.request, f'异常样品组 {group.group_number} 更新成功')
-        
-        return response
+        context = {
+            'samples': queryset,
+            'log_choices': AbnormalSample.LOG_CHOICES,
+            'status_choices': AbnormalSample.STATUS_CHOICES,
+            'priority_choices': AbnormalSample.PRIORITY_CHOICES,
+            'current_status': status or '',
+            'current_priority': priority or '',
+            'search_query': search or '',
+            'selected_ids': [int(x) for x in selected_ids if x.isdigit()],
+        }
+        return render(request, self.template_name, context)
     
-    def get_success_url(self):
-        return reverse_lazy('abnormal:group_detail', kwargs={'pk': self.object.pk})
-
-
-class AbnormalSampleGroupDeleteView(LoginRequiredMixin, DeleteView):
-    """删除异常样品组"""
-    model = AbnormalSampleGroup
-    template_name = 'abnormal/group_confirm_delete.html'
-    context_object_name = 'group'
-    success_url = reverse_lazy('abnormal:group_list')
-    
-    def delete(self, request, *args, **kwargs):
-        group = self.get_object()
-        messages.success(request, f'异常样品组 {group.group_number} 已删除')
-        return super().delete(request, *args, **kwargs)
-
-
-class AbnormalSampleGroupBulkEditView(LoginRequiredMixin, View):
-    """批量编辑组内异常样品"""
-    def post(self, request, pk):
-        group = get_object_or_404(AbnormalSampleGroup, pk=pk)
+    def post(self, request):
         sample_ids = request.POST.getlist('sample_ids')
-        action = request.POST.get('bulk_action')
+        log_files = request.FILES.getlist('log_files')
         
         if not sample_ids:
-            messages.error(request, '请先选择要编辑的样品')
-            return redirect('abnormal:group_detail', pk=pk)
+            messages.error(request, '请至少选择一个异常样品')
+            return redirect('abnormal:abnormal_batch_upload_log')
         
-        samples = group.samples.filter(pk__in=sample_ids)
-        
-        if action == 'sync_all':
-            # 同步组属性到全部样品
-            samples.update(
-                solution=group.solution,
-                priority=group.priority,
-                status=group.status,
-                assignee=group.assignee,
-                abnormal_description=group.abnormal_description,
-            )
-            messages.success(request, f'已将组属性同步到 {samples.count()} 个样品')
-        
-        elif action == 'sync_unedited':
-            # 只同步未单独编辑过的样品
-            unedited = samples.filter(is_edited_individually=False)
-            unedited.update(
-                solution=group.solution,
-                priority=group.priority,
-                status=group.status,
-                assignee=group.assignee,
-                abnormal_description=group.abnormal_description,
-            )
-            messages.success(request, f'已将组属性同步到 {unedited.count()} 个未编辑样品')
-        
-        elif action == 'update_status':
-            new_status = request.POST.get('new_status')
-            if new_status in dict(AbnormalSample.STATUS_CHOICES):
-                samples.update(status=new_status)
-                messages.success(request, f'已更新 {samples.count()} 个样品的状态')
-        
-        elif action == 'update_priority':
-            new_priority = request.POST.get('new_priority')
-            if new_priority in dict(AbnormalSample.PRIORITY_CHOICES):
-                samples.update(priority=new_priority)
-                messages.success(request, f'已更新 {samples.count()} 个样品的优先级')
-        
-        elif action == 'update_assignee':
-            assignee_id = request.POST.get('new_assignee')
-            if assignee_id:
-                samples.update(assignee_id=assignee_id)
-                messages.success(request, f'已更新 {samples.count()} 个样品的负责人')
-        
-        return redirect('abnormal:group_detail', pk=pk)
-
-
-class AbnormalSampleGroupBatchUploadLogView(LoginRequiredMixin, View):
-    """批量上传日志文件到异常样品组，拖动时通过方向选择每个节点的日志类型"""
-    def post(self, request, pk):
-        group = get_object_or_404(AbnormalSampleGroup, pk=pk)
-        log_files = request.FILES.getlist('log_files')
-
         if not log_files:
-            messages.error(request, '请选择要上传的日志文件')
-            return redirect('abnormal:group_detail', pk=pk)
-
-        samples = {str(s.pk): s for s in group.samples.all()}
-        matched_count = 0
-        skipped_count = 0
-
+            messages.error(request, '请选择要上传的文件夹')
+            return redirect('abnormal:abnormal_batch_upload_log')
+        
+        samples = AbnormalSample.objects.filter(pk__in=sample_ids)
+        sample_map = {str(s.pk): s for s in samples}
+        
+        created = 0
+        failed = 0
+        
         for index, log_file in enumerate(log_files):
             sample_pk = request.POST.get(f'sample_for_{index}')
-            file_log_type = request.POST.get(f'log_type_for_{index}')
+            log_type = request.POST.get(f'log_type_for_{index}')
             folder_name = request.POST.get(f'folder_for_{index}', '')
-            if not sample_pk or not file_log_type:
-                skipped_count += 1
+            
+            if not sample_pk or not log_type:
                 continue
-            sample = samples.get(sample_pk)
+            
+            sample = sample_map.get(str(sample_pk))
             if not sample:
-                skipped_count += 1
+                failed += 1
                 continue
-
-            # 生成规范文件名：样品编号_日志类型_原文件名
-            base_name, ext = os.path.splitext(log_file.name)
-            safe_name = f"{sample.sample_number}_{file_log_type}_{base_name}{ext}"
-
+            
             try:
+                base_name, ext = os.path.splitext(log_file.name)
+                safe_name = f"{sample.sample_number}_{log_type}_{base_name}{ext}"
                 AbnormalLogFile.objects.create(
                     abnormal_sample=sample,
-                    log_type=file_log_type,
+                    log_type=log_type,
                     folder_name=folder_name,
                     file=ContentFile(log_file.read(), name=safe_name),
                     uploaded_by=request.user
                 )
-                matched_count += 1
+                created += 1
             except Exception as e:
+                failed += 1
                 messages.error(request, f'文件 {log_file.name} 上传失败：{str(e)}')
-
-        if matched_count:
-            messages.success(request, f'成功上传 {matched_count} 个日志文件')
-        if skipped_count:
-            messages.warning(request, f'{skipped_count} 个文件未匹配样品或日志类型，已跳过')
-
-        return redirect('abnormal:group_detail', pk=pk)
+        
+        if created:
+            messages.success(request, f'成功上传 {created} 个日志文件' + (f'，{failed} 个失败' if failed else ''))
+        elif failed:
+            messages.error(request, f'上传失败 {failed} 个文件')
+        else:
+            messages.warning(request, '没有匹配任何文件到样品，请拖动文件到样品并选择日志类型')
+        
+        return redirect('abnormal:abnormal_batch_upload_log')
 
 
 class AbnormalSampleUpdateView(LoginRequiredMixin, UpdateView):
@@ -1110,49 +904,14 @@ class AbnormalSampleAPIListView(LoginRequiredMixin, View):
             except FAETask.DoesNotExist:
                 pass
         result = []
-        for a in queryset.order_by('-created_at').select_related('group'):
+        for a in queryset.order_by('-created_at'):
             result.append({
                 'id': a.id,
                 'sample_number': a.sample_number,
                 'status': a.status,
                 'status_display': a.get_status_display(),
                 'priority': a.priority,
-                'group_id': a.group_id,
-                'group_number': a.group.group_number if a.group else None,
             })
         return JsonResponse({'abnormals': result})
 
 
-class AbnormalSampleGroupAPIListView(LoginRequiredMixin, View):
-    """API：获取异常样品组列表（用于桑基图关联选择）"""
-    def get(self, request):
-        fae_task_id = request.GET.get('fae_task_id')
-        queryset = AbnormalSampleGroup.objects.all().select_related('customer')
-        if fae_task_id:
-            from fae.models import FAETask
-            from testing.models import SankeyNode
-            try:
-                task = FAETask.objects.get(pk=fae_task_id)
-                # 获取该任务下所有有 test_item 的桑基图节点对应的测试项 ID
-                task_test_item_ids = SankeyNode.objects.filter(
-                    fae_task=task,
-                    test_item__isnull=False
-                ).values_list('test_item_id', flat=True).distinct()
-                # 只返回与该任务测试项关联，或已关联到该任务桑基图节点的异常样品组
-                queryset = queryset.filter(
-                    models.Q(test_item_id__in=task_test_item_ids) |
-                    models.Q(samples__sankey_nodes__fae_task=task)
-                ).distinct()
-            except FAETask.DoesNotExist:
-                pass
-        result = []
-        for g in queryset.order_by('-created_at'):
-            result.append({
-                'id': g.id,
-                'group_number': g.group_number,
-                'status': g.status,
-                'status_display': g.get_status_display(),
-                'priority': g.priority,
-                'sample_count': g.samples.count(),
-            })
-        return JsonResponse({'groups': result})

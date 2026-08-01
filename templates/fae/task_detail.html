@@ -480,77 +480,21 @@
         </div>
         {% if task_abnormals %}
         <div class="space-y-2 lg:space-y-3">
-            <!-- 按组折叠展示 -->
-            {% for group, samples in grouped_abnormals %}
-            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
-                <!-- 组标题（可点击折叠） -->
-                <div class="abnormal-group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
-                     onclick="toggleAbnormalGroup(this)">
-                    <div class="flex items-center gap-3">
-                        <i class="fas fa-layer-group text-orange-400 text-sm"></i>
-                        <div>
-                            <a href="{% url 'abnormal:group_detail' group.pk %}" class="text-white text-sm font-medium hover:text-blue-300" onclick="event.stopPropagation()">
-                                {{ group.group_number }}
-                            </a>
-                            <span class="text-xs text-slate-500 ml-2">{{ samples|length }} 片</span>
-                        </div>
-                    </div>
-                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow"></i>
+            {% for abn in task_abnormals %}
+            <div class="flex items-center gap-3 lg:gap-4 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+                <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
+                <div class="flex-1 min-w-0">
+                    <a href="{% url 'abnormal:abnormal_detail' abn.pk %}" class="text-yellow-400 hover:text-yellow-300 mono text-sm truncate block">
+                        {{ abn.sample_number }}
+                    </a>
+                    <p class="text-xs text-slate-400">
+                        {% if abn.test_item %}{{ abn.test_item.get_test_content_display }}{% else %}-{% endif %}
+                        · {{ abn.assignee.get_full_name|default:abn.assignee.username|default:"-" }}
+                    </p>
                 </div>
-                <!-- 组内样品 -->
-                <div class="group-content px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
-                    {% for abn in samples %}
-                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
-                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
-                        <div class="flex-1 min-w-0">
-                            <a href="{% url 'abnormal:abnormal_detail' abn.pk %}" class="text-yellow-400 hover:text-yellow-300 mono text-sm truncate block">
-                                {{ abn.sample_number }}
-                            </a>
-                            <p class="text-xs text-slate-400">
-                                {% if abn.test_item %}{{ abn.test_item.get_test_content_display }}{% else %}-{% endif %}
-                                · {{ abn.assignee.get_full_name|default:abn.assignee.username|default:"-" }}
-                            </p>
-                        </div>
-                        <span class="text-xs text-slate-500 flex-shrink-0">{{ abn.created_at|date:"m-d H:i" }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
+                <span class="text-xs text-slate-500 flex-shrink-0">{{ abn.created_at|date:"m-d H:i" }}</span>
             </div>
             {% endfor %}
-
-            <!-- 未分组样品 -->
-            {% if ungrouped_abnormals %}
-            <div class="rounded-lg bg-slate-900/50 border border-slate-800 overflow-hidden">
-                <div class="abnormal-group-toggle cursor-pointer flex items-center justify-between p-3 lg:p-4 hover:bg-slate-800/50 transition-colors"
-                     onclick="toggleAbnormalGroup(this)">
-                    <div class="flex items-center gap-3">
-                        <i class="fas fa-vial text-slate-400 text-sm"></i>
-                        <div>
-                            <span class="text-white text-sm font-medium">未分组样品</span>
-                            <span class="text-xs text-slate-500 ml-2">{{ ungrouped_abnormals|length }} 片</span>
-                        </div>
-                    </div>
-                    <i class="fas fa-chevron-down text-slate-500 transition-transform duration-200 group-arrow"></i>
-                </div>
-                <div class="group-content px-3 lg:px-4 pb-3 lg:pb-4 space-y-2">
-                    {% for abn in ungrouped_abnormals %}
-                    <div class="flex items-center gap-3 lg:gap-4 p-2 rounded-lg bg-slate-800/50">
-                        <i class="fas fa-exclamation-triangle text-red-400 text-xs"></i>
-                        <div class="flex-1 min-w-0">
-                            <a href="{% url 'abnormal:abnormal_detail' abn.pk %}" class="text-yellow-400 hover:text-yellow-300 mono text-sm truncate block">
-                                {{ abn.sample_number }}
-                            </a>
-                            <p class="text-xs text-slate-400">
-                                {% if abn.test_item %}{{ abn.test_item.get_test_content_display }}{% else %}-{% endif %}
-                                · {{ abn.assignee.get_full_name|default:abn.assignee.username|default:"-" }}
-                            </p>
-                        </div>
-                        <span class="text-xs text-slate-500 flex-shrink-0">{{ abn.created_at|date:"m-d H:i" }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
         </div>
         {% else %}
         <div class="text-center py-8 text-slate-500">
@@ -754,18 +698,6 @@
         });
     });
 
-    // 异常样品组折叠
-    function toggleAbnormalGroup(header) {
-        const content = header.nextElementSibling;
-        const arrow = header.querySelector('.group-arrow');
-        if (content.classList.contains('hidden')) {
-            content.classList.remove('hidden');
-            arrow.style.transform = 'rotate(0deg)';
-        } else {
-            content.classList.add('hidden');
-            arrow.style.transform = 'rotate(-90deg)';
-        }
-    }
 </script>
 
 <script>

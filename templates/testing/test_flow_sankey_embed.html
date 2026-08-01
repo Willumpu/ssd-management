@@ -850,7 +850,7 @@
         menu.dataset.nodeType = nodeData.nodeType;
         menu.dataset.testItemId = nodeData.testItemId || '';
 
-        // 控制"创建异常样品组"按钮显示（子类节点和异常分类节点）
+        // 控制"批量创建异常样品"按钮显示（子类节点和异常分类节点）
         const createGroupBtn = document.getElementById('menu-create-group');
         if (createGroupBtn) {
             if (nodeData.nodeType === 'subcategory' || nodeData.nodeType === 'abnormal_category') {
@@ -1540,10 +1540,10 @@
         document.getElementById('abnormal-create-link').href = `/abnormal/create/?sankey_node=${nodeId}&fae_task_id={{ fae_task.id }}`;
         document.getElementById('abnormal-existing-list').innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
         showModal('modal-add-abnormal');
-        loadExistingAbnormalsGrouped(nodeId);
+        loadExistingAbnormals(nodeId);
     }
 
-    async function loadExistingAbnormalsGrouped(nodeId) {
+    async function loadExistingAbnormals(nodeId) {
         const container = document.getElementById('abnormal-existing-list');
         container.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
         
@@ -1636,105 +1636,26 @@
                 }
             }
             
-            // 4. 按组归类并渲染
-            const groups = {};
-            const ungrouped = [];
+            // 4. 平铺渲染所有样品
+            let html = '<div class="space-y-1">';
             for (const s of availableAbnormals) {
-                if (s.group_id) {
-                    const key = s.group_id;
-                    if (!groups[key]) groups[key] = {id: s.group_id, number: s.group_number, samples: []};
-                    groups[key].samples.push(s);
-                } else {
-                    ungrouped.push(s);
-                }
-            }
-            
-            let html = '';
-            // 有组的样品
-            for (const g of Object.values(groups)) {
-                const allChecked = g.samples.length > 0 && g.samples.every(s => currentBoundIds.has(String(s.id)));
+                const checked = currentBoundIds.has(String(s.id)) ? 'checked' : '';
                 html += `
-                    <div class="group-card mb-2 border border-slate-700/50 rounded-lg overflow-hidden">
-                        <div class="group-header flex items-center justify-between px-3 py-2 bg-slate-800/80 cursor-pointer hover:bg-slate-800 transition-colors" onclick="toggleGroup(this)">
-                            <div class="flex items-center gap-2">
-                                <input type="checkbox" class="group-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" data-group-id="${g.id}" onchange="toggleGroupCheckbox(this, '${g.id}')" onclick="event.stopPropagation()" ${allChecked ? 'checked' : ''}>
-                                <span class="text-xs font-medium text-yellow-400">${g.number}</span>
-                                <span class="text-[10px] text-slate-500">${g.samples.length}个样品</span>
-                            </div>
-                            <i class="fas fa-chevron-down text-[10px] text-slate-500 transition-transform group-arrow"></i>
+                    <label class="flex items-center gap-2 p-2 rounded bg-slate-800/50 border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors">
+                        <input type="checkbox" name="existing_abnormal" value="${s.id}" class="sample-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" ${checked}>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-medium text-yellow-400 truncate">${s.sample_number || s.id}</div>
+                            <div class="text-[10px] text-slate-500">${s.status_display || s.status || ''}</div>
                         </div>
-                        <div class="group-body hidden px-3 py-2 space-y-1 bg-slate-900/30">
-                            ${g.samples.map(s => {
-                                const checked = currentBoundIds.has(String(s.id)) ? 'checked' : '';
-                                return `
-                                <label class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
-                                    <input type="checkbox" name="existing_abnormal" value="${s.id}" data-group-id="${g.id}" class="sample-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" onchange="updateGroupCheckbox('${g.id}')" ${checked}>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="text-xs text-slate-300 truncate">${s.sample_number || s.id}</div>
-                                        <div class="text-[10px] text-slate-500">${s.status_display || s.status || ''}</div>
-                                    </div>
-                                </label>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
+                    </label>
                 `;
             }
-            // 未分组样品
-            if (ungrouped.length) {
-                const allChecked = ungrouped.length > 0 && ungrouped.every(s => currentBoundIds.has(String(s.id)));
-                html += `
-                    <div class="group-card mb-2 border border-slate-700/50 rounded-lg overflow-hidden">
-                        <div class="group-header flex items-center justify-between px-3 py-2 bg-slate-800/80 cursor-pointer hover:bg-slate-800 transition-colors" onclick="toggleGroup(this)">
-                            <div class="flex items-center gap-2">
-                                <input type="checkbox" class="group-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" data-group-id="ungrouped" onchange="toggleGroupCheckbox(this, 'ungrouped')" onclick="event.stopPropagation()" ${allChecked ? 'checked' : ''}>
-                                <span class="text-xs font-medium text-slate-400">未分组样品</span>
-                                <span class="text-[10px] text-slate-500">${ungrouped.length}个</span>
-                            </div>
-                            <i class="fas fa-chevron-down text-[10px] text-slate-500 transition-transform group-arrow"></i>
-                        </div>
-                        <div class="group-body hidden px-3 py-2 space-y-1 bg-slate-900/30">
-                            ${ungrouped.map(s => {
-                                const checked = currentBoundIds.has(String(s.id)) ? 'checked' : '';
-                                return `
-                                <label class="flex items-center gap-2 p-1.5 rounded hover:bg-slate-800/50 cursor-pointer transition-colors">
-                                    <input type="checkbox" name="existing_abnormal" value="${s.id}" data-group-id="ungrouped" class="sample-checkbox w-3.5 h-3.5 rounded border-slate-600 text-yellow-600 focus:ring-yellow-600/50 bg-slate-800" onchange="updateGroupCheckbox('ungrouped')" ${checked}>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="text-xs text-slate-300 truncate">${s.sample_number || s.id}</div>
-                                        <div class="text-[10px] text-slate-500">${s.status_display || s.status || ''}</div>
-                                    </div>
-                                </label>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            }
+            html += '</div>';
             container.innerHTML = html;
         } catch (e) {
             console.error('加载异常样品列表失败:', e);
             container.innerHTML = '<p class="text-xs text-red-400 text-center py-2">加载失败</p>';
         }
-    }
-
-    function toggleGroup(header) {
-        const body = header.nextElementSibling;
-        const arrow = header.querySelector('.group-arrow');
-        body.classList.toggle('hidden');
-        arrow.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
-    }
-
-    function toggleGroupCheckbox(checkbox, groupId) {
-        const card = checkbox.closest('.group-card');
-        card.querySelectorAll('.sample-checkbox').forEach(cb => cb.checked = checkbox.checked);
-    }
-
-    function updateGroupCheckbox(groupId) {
-        const card = document.querySelector(`.group-card input[data-group-id="${groupId}"]`)?.closest('.group-card');
-        if (!card) return;
-        const groupCheck = card.querySelector('.group-checkbox');
-        const sampleChecks = card.querySelectorAll('.sample-checkbox');
-        groupCheck.checked = sampleChecks.length > 0 && Array.from(sampleChecks).every(cb => cb.checked);
     }
 
     async function submitAttachAbnormals() {
@@ -1768,7 +1689,7 @@
         openAddAbnormalModal(nodeId, nodeName);
     }
 
-    // ==================== 创建异常样品组 ====================
+    // ==================== 批量创建异常样品 ====================
     function showCreateGroupModal() {
         const menu = document.getElementById('node-context-menu');
         const nodeId = menu.dataset.nodeId;
@@ -1782,7 +1703,7 @@
             sankey_node: String(nodeId),
             total_count: String(quantity),
         });
-        window.open(`/abnormal/groups/create/?${params.toString()}`, '_blank');
+        window.open(`/abnormal/batch-create/?${params.toString()}`, '_blank');
     }
 </script>
 
@@ -1818,7 +1739,7 @@
                     <i class="fas fa-exclamation-triangle mr-2"></i>绑定异常样品
                 </button>
                 <button id="menu-create-group" onclick="showCreateGroupModal()" class="hidden w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-800 transition-colors">
-                    <i class="fas fa-object-group mr-2"></i>创建异常样品组
+                    <i class="fas fa-layer-group mr-2"></i>批量创建异常样品
                 </button>
                 <button onclick="showSplitModal()" class="w-full text-left px-4 py-2 text-sm text-orange-400 hover:bg-slate-800 transition-colors">
                     <i class="fas fa-code-branch mr-2"></i>拆分子类
@@ -1903,7 +1824,7 @@
                 <i class="fas fa-plus mr-2"></i>新建异常样品
             </a>
             <div class="border-t border-slate-800 pt-3">
-                <p class="text-xs text-slate-500 mb-2">从已有异常样品中选择（按组折叠）：</p>
+                <p class="text-xs text-slate-500 mb-2">从已有异常样品中选择：</p>
                 <div id="abnormal-existing-list" class="max-h-60 overflow-y-auto">
                     <p class="text-xs text-slate-500 text-center py-2">加载中...</p>
                 </div>

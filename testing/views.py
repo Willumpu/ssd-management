@@ -79,26 +79,6 @@ def _link_abnormal_samples_to_test(test_item, samples, user):
     return linked_count
 
 
-def handle_test_item_abnormal_group(request, test_item, form, is_create=False):
-    """处理测试项与异常样品组的关联及自动创建测试记录"""
-    abnormal_group = form.cleaned_data.get('abnormal_group')
-    if not abnormal_group:
-        return
-    
-    linked_count = _link_abnormal_samples_to_test(test_item, abnormal_group.samples.all(), request.user)
-    
-    # 更新异常样品组的所属测试项
-    if is_create and not abnormal_group.test_item:
-        abnormal_group.test_item = test_item
-        abnormal_group.save(update_fields=['test_item'])
-    
-    if linked_count > 0:
-        messages.success(
-            request,
-            f'已关联异常样品组 {abnormal_group.group_number} 的 {linked_count} 个样品，并自动添加测试记录'
-        )
-
-
 class TestItemListView(LoginRequiredMixin, ListView):
     """测试项列表"""
     model = TestItem
@@ -139,20 +119,12 @@ class TestItemDetailView(LoginRequiredMixin, DetailView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from collections import defaultdict
-        relations = self.object.abnormal_relations.select_related(
-            'abnormal_sample__group', 'abnormal_sample__customer'
-        ).all()
-        grouped = defaultdict(list)
-        ungrouped = []
-        for relation in relations:
-            sample = relation.abnormal_sample
-            if sample.group:
-                grouped[sample.group].append(sample)
-            else:
-                ungrouped.append(sample)
-        context['grouped_abnormals'] = list(grouped.items())
-        context['ungrouped_abnormals'] = ungrouped
+        context['related_abnormals'] = [
+            relation.abnormal_sample
+            for relation in self.object.abnormal_relations.select_related(
+                'abnormal_sample__customer', 'abnormal_sample__assignee'
+            ).order_by('-abnormal_sample__created_at')
+        ]
         context['comments'] = self.object.comments.select_related('author').all()
         context['comment_form'] = TestCommentForm()
         # 测试参数
@@ -293,9 +265,6 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
             except TestItem.DoesNotExist:
                 pass
         
-        # 处理异常样品组关联
-        handle_test_item_abnormal_group(self.request, self.object, form, is_create=True)
-        
         # 处理手动选择的异常样品关联
         abnormal_samples = form.cleaned_data.get('abnormal_samples')
         if abnormal_samples:
@@ -336,8 +305,8 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
                     f'node_type={source_node.node_type}'
                 )
                 
-                if source_node.node_type in ('merged', 'subcategory'):
-                    # 合流/子分类节点本身作为初始节点，直接关联测试项
+                if source_node.node_type in ('merged', 'subcategory', 'abnormal_category'):
+                    # 合流/子分类/异常分类节点本身作为初始节点，直接关联测试项
                     source_node.test_item = self.object
                     source_node.save(update_fields=['test_item'])
                 else:
@@ -421,6 +390,25 @@ def sync_test_item_to_sankey(test_item):
         sources = list(test_item.source_tests.all())
         test_name = test_item.test_content.name if test_item.test_content else '-'
         
+        # 预先计算当前测试项 pass/fail 节点下的所有子节点（这些节点不能作为该测试项的源节点）
+        own_pass_fail = SankeyNode.objects.filter(
+            fae_task=fae_task, test_item=test_item, node_type__in=('pass', 'fail')
+        )
+        own_descendant_ids = set()
+        queue = list(own_pass_fail.values_list('id', flat=True))
+        while queue:
+            node_id = queue.pop(0)
+            if node_id in own_descendant_ids:
+                continue
+            own_descendant_ids.add(node_id)
+            for child_id in SankeyNode.objects.filter(
+                parent_nodes__id=node_id
+            ).values_list('id', flat=True):
+                if child_id not in own_descendant_ids:
+                    queue.append(child_id)
+        # pass/fail 节点自身不算作被排除的源节点，只排除其后代子节点
+        own_descendant_ids -= set(own_pass_fail.values_list('id', flat=True))
+        
         # 确定源节点
         source_node = None
         
@@ -435,51 +423,72 @@ def sync_test_item_to_sankey(test_item):
         
         # 0. 如果测试项记录了来源桑基图节点（子分类/异常分类/合流），直接使用该节点作为源
         if test_item.source_sankey_node and test_item.source_sankey_node.fae_task_id == fae_task.id:
-            source_node = test_item.source_sankey_node
-            sankey_logger.warning(
-                f'[sync_test_item_to_sankey] use source_sankey_node '
-                f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
-            )
-            # 当测试项已有 pass/fail 结果时，删除作为过渡的旧 initial 节点
-            if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
-                SankeyNode.objects.filter(
-                    fae_task=fae_task, test_item=test_item, node_type='initial'
-                ).delete()
+            candidate = test_item.source_sankey_node
+            if candidate.id in own_descendant_ids:
+                sankey_logger.warning(
+                    f'[sync_test_item_to_sankey] source_sankey_node {candidate.id} is a descendant '
+                    f'of own pass/fail nodes, ignore it'
+                )
+            else:
+                source_node = candidate
+                sankey_logger.warning(
+                    f'[sync_test_item_to_sankey] use source_sankey_node '
+                    f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
+                )
+                # 当来源节点自身就是该测试项的入口节点（合流/子分类/异常分类）时，
+                # 删除可能已存在的旧 initial 节点，避免重复入口
+                if source_node.node_type in ('merged', 'subcategory', 'abnormal_category'):
+                    if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
+                        SankeyNode.objects.filter(
+                            fae_task=fae_task, test_item=test_item, node_type='initial'
+                        ).delete()
+
         # 1. 兼容旧数据：从子分类/异常分类/合流节点创建的测试项可能没有记录 source_sankey_node，
         #    通过已存在的边来推断源节点
-        elif special_source_edge := SankeyEdge.objects.filter(
-            fae_task=fae_task,
-            source_node__node_type__in=('subcategory', 'abnormal_category', 'merged')
-        ).filter(
-            Q(test_item=test_item) | Q(target_node__test_item=test_item)
-        ).select_related('source_node').first():
-            source_node = special_source_edge.source_node
-            sankey_logger.warning(
-                f'[sync_test_item_to_sankey] use special source edge to node '
-                f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
-            )
-            # 当测试项已有 pass/fail 结果时，删除作为过渡的旧 initial 节点
-            if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
+        if not source_node:
+            special_source_edge = SankeyEdge.objects.filter(
+                fae_task=fae_task,
+                source_node__node_type__in=('subcategory', 'abnormal_category', 'merged')
+            ).exclude(
+                source_node__id__in=own_descendant_ids
+            ).filter(
+                Q(test_item=test_item) | Q(target_node__test_item=test_item)
+            ).select_related('source_node').first()
+            if special_source_edge:
+                source_node = special_source_edge.source_node
+                sankey_logger.warning(
+                    f'[sync_test_item_to_sankey] use special source edge to node '
+                    f'id={source_node.id}, type={source_node.node_type}, label={source_node.label}'
+                )
+                # 推断出的源节点为入口节点时，删除旧 initial 节点，避免重复入口
+                if source_node.node_type in ('merged', 'subcategory', 'abnormal_category'):
+                    if test_item.passed_samples > 0 or test_item.abnormal_samples_count > 0:
+                        SankeyNode.objects.filter(
+                            fae_task=fae_task, test_item=test_item, node_type='initial'
+                        ).delete()
+
+        # 2. 检查是否有 merged/subcategory/abnormal_category 节点直接关联到该测试项
+        #    这些节点必须没有父节点（即不是从当前测试项 pass/fail 节点拆分出来的子节点）
+        if not source_node:
+            merged_source = SankeyNode.objects.filter(
+                fae_task=fae_task, test_item=test_item, node_type__in=('merged', 'subcategory', 'abnormal_category'),
+                parent_nodes=None
+            ).first()
+            if merged_source:
+                source_node = merged_source
+                # 删除可能已存在的旧 initial 节点（兼容旧数据）
                 SankeyNode.objects.filter(
                     fae_task=fae_task, test_item=test_item, node_type='initial'
                 ).delete()
-        # 2. 检查是否有 merged/subcategory 节点直接关联到该测试项
-        elif merged_source := SankeyNode.objects.filter(
-            fae_task=fae_task, test_item=test_item, node_type__in=('merged', 'subcategory')
-        ).first():
-            source_node = merged_source
-            # 删除可能已存在的旧 initial 节点（兼容旧数据）
-            SankeyNode.objects.filter(
-                fae_task=fae_task, test_item=test_item, node_type='initial'
-            ).delete()
-        elif not sources:
+
+        if not source_node and not sources:
             # 3. 检查旧数据：initial 节点是否有来自特殊节点的入边
             existing_init = SankeyNode.objects.filter(
                 fae_task=fae_task, test_item=test_item, node_type='initial'
             ).first()
             if existing_init:
                 incoming = SankeyEdge.objects.filter(
-                    fae_task=fae_task, target_node=existing_init, source_node__node_type__in=('merged', 'subcategory')
+                    fae_task=fae_task, target_node=existing_init, source_node__node_type__in=('merged', 'subcategory', 'abnormal_category')
                 ).first()
                 if incoming:
                     # 旧数据：删除 initial，改用 merged 节点
@@ -502,8 +511,9 @@ def sync_test_item_to_sankey(test_item):
                     node_type='initial',
                     test_item=test_item,
                 )
-        else:
-            # 3. 分支测试：源节点是 source_tests 第一个的 pass 或 fail 节点
+
+        if not source_node and sources:
+            # 4. 分支测试：源节点是 source_tests 第一个的 pass 或 fail 节点
             src = sources[0]
             src_node_type = 'pass' if test_item.branch_type == 'passed' else 'fail'
             source_node = SankeyNode.objects.filter(
@@ -646,13 +656,29 @@ class TestItemUpdateView(LoginRequiredMixin, UpdateView):
                 )
                 return self.form_invalid(form)
         
+        # 额外校验：fail 节点数量不能小于其下子分类/异常分类节点数量之和
+        old_abnormal_count = old_instance.abnormal_samples_count or 0
+        new_abnormal_count = form.cleaned_data.get('abnormal_samples_count') or 0
+        if new_abnormal_count < old_abnormal_count:
+            fail_nodes = SankeyNode.objects.filter(
+                test_item=old_instance, node_type='fail'
+            )
+            for fail_node in fail_nodes:
+                child_sum = fail_node.child_nodes.filter(
+                    node_type__in=['subcategory', 'abnormal_category']
+                ).aggregate(total=models.Sum('quantity'))['total'] or 0
+                if child_sum > 0 and new_abnormal_count < child_sum:
+                    form.add_error(
+                        'abnormal_samples_count',
+                        f'异常数量不能小于该测试项 FAIL 节点已分类样品总数（{child_sum}片），'
+                        f'请先调整子分类/异常分类节点数量后再减少。'
+                    )
+                    return self.form_invalid(form)
+        
         response = super().form_valid(form)
         
         # 保存测试参数
         _save_test_parameters(self.request, self.object, form)
-        
-        # 处理异常样品组关联（更新时如果更换了组）
-        handle_test_item_abnormal_group(self.request, self.object, form, is_create=False)
         
         # 处理手动选择的异常样品关联
         abnormal_samples = form.cleaned_data.get('abnormal_samples')
@@ -859,6 +885,22 @@ class TestItemCountUpdateView(LoginRequiredMixin, View):
             return JsonResponse({'success': False, 'error': '数量必须是整数'})
         
         old_value = getattr(test_item, field)
+        
+        # fail 节点数量不能小于其下子分类/异常分类节点数量之和
+        if field == 'abnormal_samples_count' and value < old_value:
+            fail_nodes = SankeyNode.objects.filter(
+                test_item=test_item, node_type='fail'
+            )
+            for fail_node in fail_nodes:
+                child_sum = fail_node.child_nodes.filter(
+                    node_type__in=['subcategory', 'abnormal_category']
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                if child_sum > 0 and value < child_sum:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'异常数量不能小于该测试项 FAIL 节点已分类样品总数（{child_sum}片），请先调整子分类/异常分类节点数量后再减少。'
+                    })
+        
         setattr(test_item, field, value)
         
         try:
@@ -1552,20 +1594,9 @@ class SankeyNodeAbnormalAttachView(LoginRequiredMixin, View):
         
         abnormal_ids = data.get('abnormal_ids', [])
         abnormal_sample_id = data.get('abnormal_sample_id')
-        abnormal_group_id = data.get('abnormal_group_id')
         
         if abnormal_sample_id:
             abnormal_ids = [abnormal_sample_id]
-        
-        # 如果传入了组ID，把组内所有样品加入目标列表
-        if abnormal_group_id:
-            from abnormal.models import AbnormalSampleGroup
-            try:
-                group = AbnormalSampleGroup.objects.get(pk=abnormal_group_id)
-                group_sample_ids = list(group.samples.values_list('id', flat=True))
-                abnormal_ids = list(set(abnormal_ids + group_sample_ids))
-            except AbnormalSampleGroup.DoesNotExist:
-                return JsonResponse({'success': False, 'error': '异常样品组不存在'})
         
         from abnormal.models import AbnormalSample
         target_ids = set(int(i) for i in abnormal_ids if i)
