@@ -1566,7 +1566,19 @@ class SankeyNodeDeleteView(LoginRequiredMixin, View):
     def post(self, request, node_id):
         node = get_object_or_404(SankeyNode, pk=node_id)
         task = node.fae_task
-        
+
+        # 先收集待删除节点及其绑定的异常样品
+        nodes_to_delete = []
+        abnormal_sample_ids = set()
+
+        def collect(n):
+            nodes_to_delete.append(n)
+            abnormal_sample_ids.update(n.abnormal_samples.values_list('id', flat=True))
+            for child in n.child_nodes.all():
+                collect(child)
+
+        collect(node)
+
         def delete_recursive(n):
             # 先删除子节点
             for child in n.child_nodes.all():
@@ -1578,8 +1590,15 @@ class SankeyNodeDeleteView(LoginRequiredMixin, View):
             n.outgoing_edges.all().delete()
             n.incoming_edges.all().delete()
             n.delete()
-        
+
         delete_recursive(node)
+
+        # 如果异常样品不再绑定任何桑基图节点，则一并删除
+        from abnormal.models import AbnormalSample
+        for sample_id in abnormal_sample_ids:
+            if not AbnormalSample.objects.filter(pk=sample_id, sankey_nodes__isnull=False).exists():
+                AbnormalSample.objects.filter(pk=sample_id).delete()
+
         return JsonResponse({'success': True})
 
 
