@@ -67,7 +67,7 @@
                         </thead>
                         <tbody class="divide-y divide-slate-800 text-sm">
                             {% for sample in samples %}
-                            <tr class="hover:bg-slate-800/30 transition-colors sample-row" data-sample-pk="{{ sample.pk }}" data-sample-number="{{ sample.sample_number }}">
+                            <tr class="hover:bg-slate-800/30 transition-colors sample-row" data-sample-pk="{{ sample.pk }}" data-sample-number="{{ sample.sample_number }}" data-created-at="{{ sample.created_at|date:'c' }}">
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <input type="checkbox" name="sample_ids" value="{{ sample.pk }}" class="sample-checkbox w-4 h-4 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500/50 focus:ring-offset-0" {% if sample.pk in selected_ids %}checked{% endif %}>
                                 </td>
@@ -142,6 +142,23 @@
 
                 <div id="batchMatchPanel" class="hidden space-y-4">
                     <p class="text-xs text-slate-400"><i class="fas fa-hand-pointer mr-1"></i>展开/折叠左侧文件夹；拖动文件夹或文件到右侧样品上方，样品内会展开日志类型选项，拖到对应类型上完成匹配；已匹配内容会显示在样品下方，可点击 × 取消</p>
+
+                    <!-- 批量自动分配 -->
+                    <div class="glass rounded-lg border border-slate-700/50 p-4 bg-slate-900/20">
+                        <h4 class="text-sm font-medium text-white mb-1"><i class="fas fa-magic text-emerald-400 mr-1"></i>批量自动分配</h4>
+                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件创建时间升序排序，并依次分配给已选样品（样品按创建时间升序）。</p>
+                        <div class="flex flex-wrap gap-1.5 mb-3" id="batchTypeOptions">
+                            {% for value, label in log_choices %}
+                            <button type="button" class="batch-type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="{{ value }}">{{ label }}</button>
+                            {% endfor %}
+                        </div>
+                        <div id="batchDropZone" class="drop-zone min-h-[80px] p-4 rounded-lg border border-dashed border-slate-600 bg-slate-900/30 flex flex-col items-center justify-center text-slate-500 text-sm transition-colors">
+                            <i class="fas fa-cloud-upload-alt text-2xl mb-2"></i>
+                            <span>拖动文件夹到此处进行批量分配</span>
+                            <span class="text-xs text-slate-600 mt-1" id="batchDropHint">请先选择日志类型</span>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- 待匹配文件 -->
                         <div>
@@ -236,7 +253,7 @@
     // 从服务端获取已选样品（跨页保留）
     const initialSelectedSamples = [
         {% for s in selected_samples %}
-        {pk: '{{ s.pk }}', sampleNumber: '{{ s.sample_number }}'}{% if not forloop.last %},{% endif %}
+        {pk: '{{ s.pk }}', sampleNumber: '{{ s.sample_number }}', createdAt: new Date('{{ s.created_at|date:"c" }}')}{% if not forloop.last %},{% endif %}
         {% endfor %}
     ];
 
@@ -250,10 +267,10 @@
 
     const filterSelectedIds = document.getElementById('filterSelectedIds');
 
-    // 跨页维护已选样品集合：pk -> sampleNumber
+    // 跨页维护已选样品集合：pk -> {sampleNumber, createdAt}
     const selectedSampleMap = new Map();
     initialSelectedSamples.forEach(function(s) {
-        selectedSampleMap.set(String(s.pk), s.sampleNumber);
+        selectedSampleMap.set(String(s.pk), { sampleNumber: s.sampleNumber, createdAt: s.createdAt });
     });
 
     function getSelectedIdsString() {
@@ -298,10 +315,10 @@
         }
     }
 
-    function selectSample(pk, sampleNumber, checked) {
+    function selectSample(pk, sampleNumber, createdAt, checked) {
         const key = String(pk);
         if (checked) {
-            selectedSampleMap.set(key, sampleNumber);
+            selectedSampleMap.set(key, { sampleNumber: sampleNumber, createdAt: createdAt || new Date(0) });
         } else {
             selectedSampleMap.delete(key);
         }
@@ -311,7 +328,7 @@
 
     function getSelectedSamples() {
         return Array.from(selectedSampleMap.entries()).map(function(entry) {
-            return { pk: entry[0], sampleNumber: entry[1] };
+            return { pk: entry[0], sampleNumber: entry[1].sampleNumber, createdAt: entry[1].createdAt };
         });
     }
 
@@ -367,7 +384,7 @@
         const checked = document.getElementById('selectAll').checked;
         document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
             const row = cb.closest('.sample-row');
-            selectSample(cb.value, row.dataset.sampleNumber, checked);
+            selectSample(cb.value, row.dataset.sampleNumber, new Date(row.dataset.createdAt), checked);
         });
     });
 
@@ -377,14 +394,14 @@
         const allChecked = Array.from(checkboxes).every(function(cb) { return cb.checked; });
         checkboxes.forEach(function(cb) {
             const row = cb.closest('.sample-row');
-            selectSample(cb.value, row.dataset.sampleNumber, !allChecked);
+            selectSample(cb.value, row.dataset.sampleNumber, new Date(row.dataset.createdAt), !allChecked);
         });
     });
 
     document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
         cb.addEventListener('change', function() {
             const row = cb.closest('.sample-row');
-            selectSample(cb.value, row.dataset.sampleNumber, cb.checked);
+            selectSample(cb.value, row.dataset.sampleNumber, new Date(row.dataset.createdAt), cb.checked);
         });
     });
 
@@ -829,6 +846,125 @@
         if (!draggedNode) return;
         unmatchNode(draggedNode);
     });
+
+    // 批量自动分配
+    let batchLogType = null;
+    const batchDropZone = document.getElementById('batchDropZone');
+    const batchDropHint = document.getElementById('batchDropHint');
+
+    document.querySelectorAll('.batch-type-option').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            batchLogType = btn.dataset.logType;
+            document.querySelectorAll('.batch-type-option').forEach(function(b) {
+                b.classList.remove('bg-emerald-600', 'text-white');
+                b.classList.add('bg-slate-700', 'text-slate-300');
+            });
+            btn.classList.remove('bg-slate-700', 'text-slate-300');
+            btn.classList.add('bg-emerald-600', 'text-white');
+            const typeLabel = logChoices.find(function(c) { return c.value === batchLogType; });
+            batchDropHint.textContent = '当前类型：' + (typeLabel ? typeLabel.label : batchLogType);
+        });
+    });
+
+    if (batchDropZone) {
+        batchDropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            batchDropZone.classList.add('drag-over');
+        });
+        batchDropZone.addEventListener('dragleave', function() {
+            batchDropZone.classList.remove('drag-over');
+        });
+        batchDropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            batchDropZone.classList.remove('drag-over');
+            if (!batchLogType) {
+                alert('请先选择日志类型');
+                return;
+            }
+            if (!draggedNode) return;
+            autoDistribute(draggedNode, batchLogType);
+        });
+    }
+
+    function collectFileNodes(node) {
+        const files = [];
+        if (node.type === 'file') {
+            files.push(node);
+        } else {
+            Object.values(node.children).forEach(function(child) {
+                files.push.apply(files, collectFileNodes(child));
+            });
+        }
+        return files;
+    }
+
+    // RDT All Flush Log 等按文件夹分配的类型
+    const FOLDER_BASED_LOG_TYPES = ['rdt_all_flush'];
+
+    function getUnitLastModified(unit) {
+        if (unit.maxLastModified !== undefined && unit.maxLastModified !== -Infinity) {
+            return unit.maxLastModified;
+        }
+        return unit.lastModified || 0;
+    }
+
+    function collectDistributionUnits(node, logType) {
+        // 文件夹类型：以文件夹为单位分配
+        if (FOLDER_BASED_LOG_TYPES.indexOf(logType) !== -1) {
+            if (node.type === 'file') {
+                return [node]; // 单个文件兜底
+            }
+            const childFolders = Object.values(node.children).filter(function(c) { return c.type === 'folder'; });
+            if (childFolders.length > 0) {
+                const units = [];
+                childFolders.forEach(function(child) {
+                    units.push.apply(units, collectDistributionUnits(child, logType));
+                });
+                return units;
+            }
+            // 叶子文件夹（只有文件）作为一个单位
+            return [node];
+        }
+        // 普通类型：按文件分配
+        return collectFileNodes(node);
+    }
+
+    function autoDistribute(node, logType) {
+        const units = collectDistributionUnits(node, logType);
+        const isFolderBased = FOLDER_BASED_LOG_TYPES.indexOf(logType) !== -1;
+
+        if (units.length === 0) {
+            alert(isFolderBased ? '拖动的文件夹中没有可分配的文件夹' : '拖动的文件夹中没有文件');
+            return;
+        }
+
+        // 按时间升序排序：旧创建的在上，新创建的在下（文件夹取其内部文件的最大修改时间）
+        units.sort(function(a, b) { return getUnitLastModified(a) - getUnitLastModified(b); });
+
+        // 按样品编号升序排序：小号在上，大号在下
+        const samples = getSelectedSamples().sort(function(a, b) {
+            return a.sampleNumber.localeCompare(b.sampleNumber, undefined, {numeric: true});
+        });
+
+        if (samples.length === 0) {
+            alert('没有已选样品可供分配');
+            return;
+        }
+
+        let assigned = 0;
+        units.forEach(function(unit, index) {
+            if (index < samples.length) {
+                matchNodeToSample(unit, samples[index].pk, logType);
+                assigned++;
+            }
+        });
+
+        if (assigned < units.length) {
+            const unitName = isFolderBased ? '文件夹' : '文件';
+            alert(unitName + '数量（' + units.length + '）超过已选样品数量（' + samples.length + '），超出部分未分配');
+        }
+    }
 
     // 提交前校验
     if (batchLogForm) {

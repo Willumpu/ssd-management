@@ -406,7 +406,7 @@ class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
             'current_priority': priority or '',
             'search_query': search or '',
             'selected_ids': selected_ids,
-            'selected_samples': AbnormalSample.objects.filter(pk__in=selected_ids).values('pk', 'sample_number'),
+            'selected_samples': AbnormalSample.objects.filter(pk__in=selected_ids).values('pk', 'sample_number', 'created_at'),
         }
         return render(request, self.template_name, context)
     
