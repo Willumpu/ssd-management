@@ -206,3 +206,8 @@ CKEDITOR_5_CONFIGS = {
 CKEDITOR_5_FILE_UPLOAD_PERMISSION = "authenticated"
 # 使用 Django 配置的语言
 CKEDITOR_5_USER_LANGUAGE = True
+
+# 上传文件大小限制
+# 注意：生产环境还需在 nginx 中设置 client_max_body_size
+DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024      # 500MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024      # 100MB，超过则写入临时文件

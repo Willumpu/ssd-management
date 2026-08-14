@@ -413,34 +413,48 @@ class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
     def post(self, request):
         sample_ids = request.POST.getlist('sample_ids')
         log_files = request.FILES.getlist('log_files')
-        
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        def make_response(success, message, created=0, failed=0):
+            if is_ajax:
+                return JsonResponse({
+                    'success': success,
+                    'message': message,
+                    'created': created,
+                    'failed': failed,
+                })
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+            return redirect('abnormal:abnormal_batch_upload_log')
+
         if not sample_ids:
-            messages.error(request, '请至少选择一个异常样品')
-            return redirect('abnormal:abnormal_batch_upload_log')
-        
+            return make_response(False, '请至少选择一个异常样品')
+
         if not log_files:
-            messages.error(request, '请选择要上传的文件夹')
-            return redirect('abnormal:abnormal_batch_upload_log')
-        
+            return make_response(False, '请选择要上传的文件夹')
+
         samples = AbnormalSample.objects.filter(pk__in=sample_ids)
         sample_map = {str(s.pk): s for s in samples}
-        
+
         created = 0
         failed = 0
-        
+        errors = []
+
         for index, log_file in enumerate(log_files):
             sample_pk = request.POST.get(f'sample_for_{index}')
             log_type = request.POST.get(f'log_type_for_{index}')
             folder_name = request.POST.get(f'folder_for_{index}', '')
-            
+
             if not sample_pk or not log_type:
                 continue
-            
+
             sample = sample_map.get(str(sample_pk))
             if not sample:
                 failed += 1
                 continue
-            
+
             try:
                 base_name, ext = os.path.splitext(log_file.name)
                 safe_name = f"{sample.sample_number}_{log_type}_{base_name}{ext}"
@@ -454,16 +468,18 @@ class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
                 created += 1
             except Exception as e:
                 failed += 1
-                messages.error(request, f'文件 {log_file.name} 上传失败：{str(e)}')
-        
+                error_msg = f'文件 {log_file.name} 上传失败：{str(e)}'
+                errors.append(error_msg)
+                if not is_ajax:
+                    messages.error(request, error_msg)
+
         if created:
-            messages.success(request, f'成功上传 {created} 个日志文件' + (f'，{failed} 个失败' if failed else ''))
+            message = f'成功上传 {created} 个日志文件' + (f'，{failed} 个失败' if failed else '')
+            return make_response(True, message, created, failed)
         elif failed:
-            messages.error(request, f'上传失败 {failed} 个文件')
+            return make_response(False, f'上传失败 {failed} 个文件', created, failed)
         else:
-            messages.warning(request, '没有匹配任何文件到样品，请拖动文件到样品并选择日志类型')
-        
-        return redirect('abnormal:abnormal_batch_upload_log')
+            return make_response(False, '没有匹配任何文件到样品，请拖动文件到样品并选择日志类型', created, failed)
 
 
 class AbnormalSampleUpdateView(LoginRequiredMixin, UpdateView):

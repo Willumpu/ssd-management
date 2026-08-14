@@ -146,7 +146,7 @@
                     <!-- 批量自动分配 -->
                     <div class="glass rounded-lg border border-slate-700/50 p-4 bg-slate-900/20">
                         <h4 class="text-sm font-medium text-white mb-1"><i class="fas fa-magic text-emerald-400 mr-1"></i>批量自动分配</h4>
-                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件创建时间升序排序，并依次分配给已选样品（样品按创建时间升序）。</p>
+                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件创建时间升序排序，并依次分配给已选样品（样品按编号升序）。</p>
                         <div class="flex flex-wrap gap-1.5 mb-3" id="batchTypeOptions">
                             {% for value, label in log_choices %}
                             <button type="button" class="batch-type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="{{ value }}">{{ label }}</button>
@@ -966,27 +966,192 @@
         }
     }
 
-    // 提交前校验
+    // 提交前校验与分片上传
     if (batchLogForm) {
         batchLogForm.addEventListener('submit', function(e) {
-            if (updateSelectedCount() === 0) {
-                e.preventDefault();
+            e.preventDefault();
+
+            if (selectedSampleMap.size === 0) {
                 alert('请至少选择一个样品');
                 return;
             }
             if (!fileInput.files || fileInput.files.length === 0) {
-                e.preventDefault();
                 alert('请选择要上传的文件夹');
                 return;
             }
-            const hasMatch = Array.from(matchInputs.querySelectorAll('input')).some(function(input) {
-                return !input.disabled && input.value;
+
+            const fileInfos = [];
+            let totalSize = 0;
+            matchInputs.querySelectorAll('input[name^="sample_for_"]').forEach(function(input) {
+                if (input.disabled || !input.value) return;
+                const idx = input.dataset.fileIndex;
+                const typeInput = matchInputs.querySelector('input[name="log_type_for_' + idx + '"]');
+                const folderInput = matchInputs.querySelector('input[name="folder_for_' + idx + '"]');
+                const file = fileInput.files[idx];
+                if (!file || !typeInput || !typeInput.value) return;
+                fileInfos.push({
+                    file: file,
+                    samplePk: input.value,
+                    logType: typeInput.value,
+                    folderName: folderInput ? folderInput.value : ''
+                });
+                totalSize += file.size;
             });
-            if (!hasMatch) {
-                e.preventDefault();
+
+            if (fileInfos.length === 0) {
                 alert('请至少将一个文件或文件夹匹配到样品');
+                return;
             }
+
+            const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
+            const batches = [];
+            let currentBatch = [];
+            let currentSize = 0;
+            let oversized = [];
+
+            fileInfos.forEach(function(info) {
+                if (info.file.size > CHUNK_SIZE) {
+                    oversized.push(info.file.name);
+                    return;
+                }
+                if (currentSize + info.file.size > CHUNK_SIZE && currentBatch.length > 0) {
+                    batches.push(currentBatch);
+                    currentBatch = [];
+                    currentSize = 0;
+                }
+                currentBatch.push(info);
+                currentSize += info.file.size;
+            });
+            if (currentBatch.length > 0) {
+                batches.push(currentBatch);
+            }
+
+            if (oversized.length > 0) {
+                alert('以下文件超过 50MB，无法上传：\n' + oversized.join('\n'));
+                return;
+            }
+
+            showUploadProgress(0, totalSize);
+
+            const csrfToken = batchLogForm.querySelector('input[name="csrfmiddlewaretoken"]').value;
+            const sampleIds = Array.from(selectedSampleMap.keys());
+            let completedSize = 0;
+            let totalCreated = 0;
+            let totalFailed = 0;
+            let errorMessages = [];
+
+            function uploadBatch(batchIndex) {
+                if (batchIndex >= batches.length) {
+                    hideUploadProgress();
+                    const msg = '上传完成：成功 ' + totalCreated + ' 个' + (totalFailed > 0 ? '，失败 ' + totalFailed + ' 个' : '');
+                    if (totalFailed > 0) {
+                        alert(msg + '\n' + errorMessages.join('\n'));
+                    }
+                    window.location.reload();
+                    return;
+                }
+
+                const batch = batches[batchIndex];
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', csrfToken);
+                sampleIds.forEach(function(id) {
+                    formData.append('sample_ids', id);
+                });
+                batch.forEach(function(info, idx) {
+                    formData.append('log_files', info.file);
+                    formData.append('sample_for_' + idx, info.samplePk);
+                    formData.append('log_type_for_' + idx, info.logType);
+                    formData.append('folder_for_' + idx, info.folderName);
+                });
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', batchLogForm.action, true);
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const currentLoaded = completedSize + e.loaded;
+                        updateUploadProgress(currentLoaded, totalSize);
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    completedSize += batch.reduce(function(sum, info) { return sum + info.file.size; }, 0);
+                    updateUploadProgress(completedSize, totalSize);
+
+                    let resp;
+                    try {
+                        resp = JSON.parse(xhr.responseText);
+                    } catch (err) {
+                        resp = { success: false, message: '服务器返回异常' };
+                    }
+
+                    if (xhr.status === 200 && resp && resp.success) {
+                        totalCreated += resp.created || 0;
+                        totalFailed += resp.failed || 0;
+                    } else {
+                        totalFailed += batch.length;
+                        errorMessages.push(resp.message || ('第 ' + (batchIndex + 1) + ' 批上传失败'));
+                    }
+
+                    uploadBatch(batchIndex + 1);
+                });
+
+                xhr.addEventListener('error', function() {
+                    completedSize += batch.reduce(function(sum, info) { return sum + info.file.size; }, 0);
+                    totalFailed += batch.length;
+                    errorMessages.push('第 ' + (batchIndex + 1) + ' 批网络错误');
+                    uploadBatch(batchIndex + 1);
+                });
+
+                xhr.send(formData);
+            }
+
+            uploadBatch(0);
         });
+    }
+
+    function showUploadProgress(loaded, total) {
+        let overlay = document.getElementById('uploadOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'uploadOverlay';
+            overlay.className = 'fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center';
+            overlay.innerHTML =
+                '<div class="glass rounded-xl border border-slate-700/50 p-6 w-80 text-center">' +
+                    '<div class="text-white font-medium mb-2">正在上传日志...</div>' +
+                    '<div class="text-xs text-slate-400 mb-4">请勿关闭或刷新页面</div>' +
+                    '<div class="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">' +
+                        '<div id="uploadProgressBar" class="bg-emerald-500 h-full transition-all duration-200" style="width:0%"></div>' +
+                    '</div>' +
+                    '<div id="uploadProgressText" class="text-xs text-slate-400">0%</div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+        } else {
+            overlay.classList.remove('hidden');
+        }
+        updateUploadProgress(loaded, total);
+    }
+
+    function updateUploadProgress(loaded, total) {
+        const percent = total > 0 ? Math.round(loaded / total * 100) : 0;
+        const bar = document.getElementById('uploadProgressBar');
+        const text = document.getElementById('uploadProgressText');
+        if (bar) bar.style.width = percent + '%';
+        if (text) text.textContent = percent + '% (' + formatSize(loaded) + ' / ' + formatSize(total) + ')';
+    }
+
+    function hideUploadProgress() {
+        const overlay = document.getElementById('uploadOverlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 })();
 </script>
