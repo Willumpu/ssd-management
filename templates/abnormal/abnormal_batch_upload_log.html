@@ -146,7 +146,7 @@
                     <!-- 批量自动分配 -->
                     <div class="glass rounded-lg border border-slate-700/50 p-4 bg-slate-900/20">
                         <h4 class="text-sm font-medium text-white mb-1"><i class="fas fa-magic text-emerald-400 mr-1"></i>批量自动分配</h4>
-                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件名称排序，并依次分配给已选样品（样品按编号升序）。</p>
+                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按照左侧日志的上下显示顺序，依次一一对应分配给右侧已选样品。</p>
                         <div class="flex flex-wrap gap-1.5 mb-3" id="batchTypeOptions">
                             {% for value, label in log_choices %}
                             <button type="button" class="batch-type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="{{ value }}">{{ label }}</button>
@@ -895,23 +895,30 @@
         return files;
     }
 
+    // 按页面显示的上下顺序收集文件（与 sortTreeChildren 顺序一致）
+    function collectFileNodesInDisplayOrder(node) {
+        const files = [];
+        if (node.type === 'file') {
+            files.push(node);
+        } else {
+            const sortedChildren = sortTreeChildren(Object.values(node.children));
+            sortedChildren.forEach(function(child) {
+                files.push.apply(files, collectFileNodesInDisplayOrder(child));
+            });
+        }
+        return files;
+    }
+
     // RDT All Flush Log 等按文件夹分配的类型
     const FOLDER_BASED_LOG_TYPES = ['rdt_all_flush'];
 
-    function getUnitLastModified(unit) {
-        if (unit.maxLastModified !== undefined && unit.maxLastModified !== -Infinity) {
-            return unit.maxLastModified;
-        }
-        return unit.lastModified || 0;
-    }
-
     function collectDistributionUnits(node, logType) {
-        // 文件夹类型：以文件夹为单位分配
+        // 文件夹类型：以文件夹为单位分配，保持页面显示顺序
         if (FOLDER_BASED_LOG_TYPES.indexOf(logType) !== -1) {
             if (node.type === 'file') {
                 return [node]; // 单个文件兜底
             }
-            const childFolders = Object.values(node.children).filter(function(c) { return c.type === 'folder'; });
+            const childFolders = sortTreeChildren(Object.values(node.children).filter(function(c) { return c.type === 'folder'; }));
             if (childFolders.length > 0) {
                 const units = [];
                 childFolders.forEach(function(child) {
@@ -922,8 +929,8 @@
             // 叶子文件夹（只有文件）作为一个单位
             return [node];
         }
-        // 普通类型：按文件分配
-        return collectFileNodes(node);
+        // 普通类型：按文件分配，保持页面显示顺序
+        return collectFileNodesInDisplayOrder(node);
     }
 
     function autoDistribute(node, logType) {
@@ -935,13 +942,8 @@
             return;
         }
 
-        // 按名称倒序排序（支持数字自然排序）
-        units.sort(function(a, b) { return b.name.localeCompare(a.name, undefined, {numeric: true}); });
-
-        // 按样品编号升序排序：小号在上，大号在下
-        const samples = getSelectedSamples().sort(function(a, b) {
-            return a.sampleNumber.localeCompare(b.sampleNumber, undefined, {numeric: true});
-        });
+        // 保持左侧日志的页面显示顺序，与右侧已选样品的显示顺序一一对应
+        const samples = getSelectedSamples();
 
         if (samples.length === 0) {
             alert('没有已选样品可供分配');
