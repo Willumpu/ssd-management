@@ -146,7 +146,7 @@
                     <!-- 批量自动分配 -->
                     <div class="glass rounded-lg border border-slate-700/50 p-4 bg-slate-900/20">
                         <h4 class="text-sm font-medium text-white mb-1"><i class="fas fa-magic text-emerald-400 mr-1"></i>批量自动分配</h4>
-                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按照左侧日志的上下显示顺序，依次一一对应分配给右侧已选样品。</p>
+                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按照左侧日志的上下显示顺序，依次一一对应分配给右侧已选样品（样品按编号倒序排列，编号大的在上）。</p>
                         <div class="flex flex-wrap gap-1.5 mb-3" id="batchTypeOptions">
                             {% for value, label in log_choices %}
                             <button type="button" class="batch-type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="{{ value }}">{{ label }}</button>
@@ -329,6 +329,8 @@
     function getSelectedSamples() {
         return Array.from(selectedSampleMap.entries()).map(function(entry) {
             return { pk: entry[0], sampleNumber: entry[1].sampleNumber, createdAt: entry[1].createdAt };
+        }).sort(function(a, b) {
+            return b.sampleNumber.localeCompare(a.sampleNumber, undefined, {numeric: true});
         });
     }
 
