@@ -96,6 +96,24 @@
                     </table>
                 </div>
 
+                {% if is_paginated %}
+                <div class="flex justify-center gap-2 mt-2">
+                    {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&priority={{ current_priority }}&search={{ search_query|default:'' }}&selected_ids={{ selected_ids|join:',' }}"
+                        class="pagination-link px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all text-sm">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    {% endif %}
+                    <span class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&priority={{ current_priority }}&search={{ search_query|default:'' }}&selected_ids={{ selected_ids|join:',' }}"
+                        class="pagination-link px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all text-sm">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <div class="flex justify-end">
                     <button type="button" id="goToStep2" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm transition-colors">
                         下一步：选择文件夹 <i class="fas fa-chevron-right ml-1"></i>
@@ -215,6 +233,13 @@
         {% endfor %}
     ];
 
+    // 从服务端获取已选样品（跨页保留）
+    const initialSelectedSamples = [
+        {% for s in selected_samples %}
+        {pk: '{{ s.pk }}', sampleNumber: '{{ s.sample_number }}'}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
     // 步骤切换
     const step1Panel = document.getElementById('step1Panel');
     const step2Panel = document.getElementById('step2Panel');
@@ -225,22 +250,68 @@
 
     const filterSelectedIds = document.getElementById('filterSelectedIds');
 
-    function updateSelectedCount() {
-        const checked = document.querySelectorAll('input[name="sample_ids"]:checked');
-        selectedCountEl.textContent = '已选择 ' + checked.length + ' 个';
+    // 跨页维护已选样品集合：pk -> sampleNumber
+    const selectedSampleMap = new Map();
+    initialSelectedSamples.forEach(function(s) {
+        selectedSampleMap.set(String(s.pk), s.sampleNumber);
+    });
+
+    function getSelectedIdsString() {
+        return Array.from(selectedSampleMap.keys()).join(',');
+    }
+
+    function saveSelectedIds() {
+        const idsStr = getSelectedIdsString();
         if (filterSelectedIds) {
-            filterSelectedIds.value = Array.from(checked).map(function(cb) { return cb.value; }).join(',');
+            filterSelectedIds.value = idsStr;
         }
-        return checked.length;
+        // 同步更新分页链接，使翻页时保留当前选择
+        document.querySelectorAll('.pagination-link').forEach(function(link) {
+            try {
+                const url = new URL(link.href, window.location.origin);
+                url.searchParams.set('selected_ids', idsStr);
+                link.href = url.toString();
+            } catch (e) {}
+        });
+    }
+
+    function updateSelectedCount() {
+        const total = selectedSampleMap.size;
+        selectedCountEl.textContent = '已选择 ' + total + ' 个';
+        saveSelectedIds();
+        return total;
+    }
+
+    function syncCheckboxState() {
+        const checkboxes = document.querySelectorAll('.sample-checkbox');
+        if (checkboxes.length === 0) return;
+        let checkedCount = 0;
+        checkboxes.forEach(function(cb) {
+            const checked = selectedSampleMap.has(String(cb.value));
+            cb.checked = checked;
+            if (checked) checkedCount++;
+        });
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll) {
+            selectAll.checked = checkedCount === checkboxes.length;
+            selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+        }
+    }
+
+    function selectSample(pk, sampleNumber, checked) {
+        const key = String(pk);
+        if (checked) {
+            selectedSampleMap.set(key, sampleNumber);
+        } else {
+            selectedSampleMap.delete(key);
+        }
+        syncCheckboxState();
+        updateSelectedCount();
     }
 
     function getSelectedSamples() {
-        return Array.from(document.querySelectorAll('input[name="sample_ids"]:checked')).map(function(cb) {
-            const row = cb.closest('.sample-row');
-            return {
-                pk: cb.value,
-                sampleNumber: row.dataset.sampleNumber
-            };
+        return Array.from(selectedSampleMap.entries()).map(function(entry) {
+            return { pk: entry[0], sampleNumber: entry[1] };
         });
     }
 
@@ -277,7 +348,7 @@
     }
 
     goToStep2.addEventListener('click', function() {
-        if (updateSelectedCount() === 0) {
+        if (selectedSampleMap.size === 0) {
             alert('请至少选择一个样品');
             return;
         }
@@ -291,25 +362,33 @@
         step1Panel.classList.remove('hidden');
     });
 
-    // 全选
+    // 表头全选：仅作用于本页
     document.getElementById('selectAll').addEventListener('change', function() {
+        const checked = document.getElementById('selectAll').checked;
         document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
-            cb.checked = document.getElementById('selectAll').checked;
+            const row = cb.closest('.sample-row');
+            selectSample(cb.value, row.dataset.sampleNumber, checked);
         });
-        updateSelectedCount();
     });
 
+    // 全选本页
     document.getElementById('selectAllSamples').addEventListener('click', function() {
-        const allChecked = Array.from(document.querySelectorAll('.sample-checkbox')).every(function(cb) { return cb.checked; });
-        document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
-            cb.checked = !allChecked;
+        const checkboxes = document.querySelectorAll('.sample-checkbox');
+        const allChecked = Array.from(checkboxes).every(function(cb) { return cb.checked; });
+        checkboxes.forEach(function(cb) {
+            const row = cb.closest('.sample-row');
+            selectSample(cb.value, row.dataset.sampleNumber, !allChecked);
         });
-        updateSelectedCount();
     });
 
     document.querySelectorAll('.sample-checkbox').forEach(function(cb) {
-        cb.addEventListener('change', updateSelectedCount);
+        cb.addEventListener('change', function() {
+            const row = cb.closest('.sample-row');
+            selectSample(cb.value, row.dataset.sampleNumber, cb.checked);
+        });
     });
+
+    syncCheckboxState();
     updateSelectedCount();
 
     // 文件树和拖放
@@ -338,11 +417,14 @@
 
     function buildTree(files) {
         const rootName = files.length > 0 ? (files[0].webkitRelativePath || files[0].name).split('/')[0] : 'root';
-        const root = { name: rootName, type: 'folder', children: {}, fileIndices: [], path: rootName, matchedSample: null, logType: null };
+        const root = { name: rootName, type: 'folder', children: {}, fileIndices: [], path: rootName, matchedSample: null, logType: null, minLastModified: Infinity, maxLastModified: -Infinity };
         Array.from(files).forEach(function(file, index) {
             const parts = (file.webkitRelativePath || file.name).split('/');
+            const lastModified = file.lastModified || 0;
             let node = root;
             node.fileIndices.push(index);
+            if (lastModified < node.minLastModified) node.minLastModified = lastModified;
+            if (lastModified > node.maxLastModified) node.maxLastModified = lastModified;
             parts.forEach(function(part, depth) {
                 if (depth === parts.length - 1) {
                     node.children[part] = {
@@ -352,7 +434,8 @@
                         path: parts.slice(0, depth + 1).join('/'),
                         parent: node,
                         matchedSample: null,
-                        logType: null
+                        logType: null,
+                        lastModified: lastModified
                     };
                 } else {
                     if (!node.children[part]) {
@@ -364,15 +447,29 @@
                             path: parts.slice(0, depth + 1).join('/'),
                             parent: node,
                             matchedSample: null,
-                            logType: null
+                            logType: null,
+                            minLastModified: Infinity,
+                            maxLastModified: -Infinity
                         };
                     }
                     node = node.children[part];
                     node.fileIndices.push(index);
+                    if (lastModified < node.minLastModified) node.minLastModified = lastModified;
+                    if (lastModified > node.maxLastModified) node.maxLastModified = lastModified;
                 }
             });
         });
         return root;
+    }
+
+    function sortTreeChildren(children) {
+        return children.sort(function(a, b) {
+            const ta = a.type === 'folder' ? a.maxLastModified : a.lastModified;
+            const tb = b.type === 'folder' ? b.maxLastModified : b.lastModified;
+            if (ta === -Infinity && tb !== -Infinity) return 1;
+            if (tb === -Infinity && ta !== -Infinity) return -1;
+            return tb - ta;
+        });
     }
 
     function getAllFileIndices(node) {
@@ -453,7 +550,7 @@
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'text-xs text-slate-500 focus:outline-none w-4';
-            toggle.innerHTML = '<i class="fas fa-caret-down"></i>';
+            toggle.innerHTML = '<i class="fas fa-caret-right"></i>';
             toggle.addEventListener('click', function(e) {
                 e.stopPropagation();
                 childrenContainer.classList.toggle('hidden');
@@ -469,8 +566,9 @@
             row.appendChild(folderName);
 
             const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'tree-children';
-            Object.values(node.children).forEach(function(child) {
+            childrenContainer.className = 'tree-children hidden';
+            const sortedChildren = sortTreeChildren(Object.values(node.children));
+            sortedChildren.forEach(function(child) {
                 childrenContainer.appendChild(createTreeNode(child, depth + 1));
             });
             wrapper.appendChild(row);

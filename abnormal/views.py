@@ -12,6 +12,7 @@ from django import forms
 import os
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.paginator import Paginator
 from django.http import JsonResponse, HttpResponse
 from .models import AbnormalSample, AbnormalSampleGroup, TestRecordEntry, AbnormalLogFile, AbnormalComment, AbnormalLog
 from .forms import AbnormalCommentForm, AbnormalSampleForm, AbnormalSampleBatchCreateForm
@@ -369,15 +370,15 @@ class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
         queryset = AbnormalSample.objects.all().select_related(
             'customer', 'assignee', 'solution', 'test_item__test_content'
         ).order_by('-created_at')
-        
+
         # 支持筛选和搜索
         status = request.GET.get('status')
         priority = request.GET.get('priority')
         search = request.GET.get('search')
         selected_ids_raw = request.GET.get('selected_ids', '')
         # 兼容逗号分隔的 selected_ids
-        selected_ids = [x.strip() for x in selected_ids_raw.split(',') if x.strip()]
-        
+        selected_ids = [int(x.strip()) for x in selected_ids_raw.split(',') if x.strip().isdigit()]
+
         if status:
             queryset = queryset.filter(status=status)
         if priority:
@@ -388,16 +389,24 @@ class AbnormalBatchUploadLogView(LoginRequiredMixin, View):
                 models.Q(customer__customer_code__icontains=search) |
                 models.Q(abnormal_description__icontains=search)
             )
-        
+
+        # 分页：每页 10 条
+        paginator = Paginator(queryset, 10)
+        page_number = request.GET.get('page', 1)
+        page_obj = paginator.get_page(page_number)
+
         context = {
-            'samples': queryset,
+            'samples': page_obj,
+            'page_obj': page_obj,
+            'is_paginated': paginator.num_pages > 1,
             'log_choices': AbnormalSample.LOG_CHOICES,
             'status_choices': AbnormalSample.STATUS_CHOICES,
             'priority_choices': AbnormalSample.PRIORITY_CHOICES,
             'current_status': status or '',
             'current_priority': priority or '',
             'search_query': search or '',
-            'selected_ids': [int(x) for x in selected_ids if x.isdigit()],
+            'selected_ids': selected_ids,
+            'selected_samples': AbnormalSample.objects.filter(pk__in=selected_ids).values('pk', 'sample_number'),
         }
         return render(request, self.template_name, context)
     
