@@ -146,7 +146,7 @@
                     <!-- 批量自动分配 -->
                     <div class="glass rounded-lg border border-slate-700/50 p-4 bg-slate-900/20">
                         <h4 class="text-sm font-medium text-white mb-1"><i class="fas fa-magic text-emerald-400 mr-1"></i>批量自动分配</h4>
-                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件创建时间升序排序，并依次分配给已选样品（样品按编号升序）。</p>
+                        <p class="text-xs text-slate-500 mb-3">先选择日志类型，再将文件夹拖放到下方区域。系统会按文件名称排序，并依次分配给已选样品（样品按编号升序）。</p>
                         <div class="flex flex-wrap gap-1.5 mb-3" id="batchTypeOptions">
                             {% for value, label in log_choices %}
                             <button type="button" class="batch-type-option px-2 py-1 rounded bg-slate-700 text-xs text-slate-300 border border-slate-600 hover:bg-emerald-600 hover:text-white transition-colors" data-log-type="{{ value }}">{{ label }}</button>
@@ -481,11 +481,7 @@
 
     function sortTreeChildren(children) {
         return children.sort(function(a, b) {
-            const ta = a.type === 'folder' ? a.maxLastModified : a.lastModified;
-            const tb = b.type === 'folder' ? b.maxLastModified : b.lastModified;
-            if (ta === -Infinity && tb !== -Infinity) return 1;
-            if (tb === -Infinity && ta !== -Infinity) return -1;
-            return tb - ta;
+            return b.name.localeCompare(a.name, undefined, {numeric: true});
         });
     }
 
@@ -939,8 +935,8 @@
             return;
         }
 
-        // 按时间升序排序：旧创建的在上，新创建的在下（文件夹取其内部文件的最大修改时间）
-        units.sort(function(a, b) { return getUnitLastModified(a) - getUnitLastModified(b); });
+        // 按名称倒序排序（支持数字自然排序）
+        units.sort(function(a, b) { return b.name.localeCompare(a.name, undefined, {numeric: true}); });
 
         // 按样品编号升序排序：小号在上，大号在下
         const samples = getSelectedSamples().sort(function(a, b) {
