@@ -38,6 +38,7 @@ class Issue(models.Model):
         related_name='submitted_issues', limit_choices_to={'role__in': ['fae', 'fae_leader']}
     )
     priority = models.CharField('优先级', max_length=10, choices=PRIORITY_CHOICES, default='p1')
+    summary = models.CharField('问题概述', max_length=200, default='')
     abnormal_description = CKEditor5Field('异常描述')
 
     status = models.CharField('问题单状态', max_length=20, choices=STATUS_CHOICES, default='pending')

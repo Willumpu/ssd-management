@@ -6,7 +6,7 @@ from .models import Issue, IssueSolutionRecord, IssueSolutionDetail
 class IssueForm(forms.ModelForm):
     class Meta:
         model = Issue
-        fields = ['project', 'solution', 'priority', 'status', 'abnormal_description']
+        fields = ['project', 'solution', 'priority', 'status', 'summary', 'abnormal_description']
         widgets = {
             'abnormal_description': forms.Textarea(attrs={
                 'rows': 6,
@@ -24,6 +24,11 @@ class IssueForm(forms.ModelForm):
             'status': forms.Select(attrs={
                 'class': 'w-full rounded-lg border border-slate-600 bg-slate-800/70 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500'
             }),
+            'summary': forms.TextInput(attrs={
+                'class': 'w-full rounded-lg border border-slate-600 bg-slate-800/70 text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500',
+                'placeholder': '请输入问题概述',
+                'maxlength': '200',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
@@ -33,6 +38,7 @@ class IssueForm(forms.ModelForm):
         self.fields['status'].required = False
         self.fields['project'].empty_label = None
         self.fields['solution'].empty_label = None
+        self.fields['summary'].required = True
 
     def clean_priority(self):
         return self.cleaned_data.get('priority') or 'p1'

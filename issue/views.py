@@ -7,9 +7,14 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.utils import timezone
 from django.db import transaction, models
+from django import forms
 
 from .models import Issue, IssueLog, IssueSolutionRecord, IssueSolutionDetail
 from .forms import IssueForm, IssueSolutionRecordForm, IssueSolutionDetailForm
+from abnormal.forms import AbnormalSampleForm
+from fae.models import Customer
+from project.models import Project
+from solution.models import Solution
 
 
 class IssueListView(LoginRequiredMixin, ListView):
@@ -23,10 +28,12 @@ class IssueListView(LoginRequiredMixin, ListView):
         search = self.request.GET.get('search', '')
         status = self.request.GET.get('status', '')
         priority = self.request.GET.get('priority', '')
+        project = self.request.GET.get('project', '')
 
         if search:
             queryset = queryset.filter(
                 models.Q(issue_number__icontains=search) |
+                models.Q(summary__icontains=search) |
                 models.Q(project__name__icontains=search) |
                 models.Q(solution__name__icontains=search) |
                 models.Q(abnormal_description__icontains=search)
@@ -35,6 +42,8 @@ class IssueListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(status=status)
         if priority:
             queryset = queryset.filter(priority=priority)
+        if project:
+            queryset = queryset.filter(project_id=project)
 
         return queryset
 
@@ -45,6 +54,7 @@ class IssueListView(LoginRequiredMixin, ListView):
         context['priority_filter'] = self.request.GET.get('priority', '')
         context['status_choices'] = Issue.STATUS_CHOICES
         context['priority_choices'] = Issue.PRIORITY_CHOICES
+        context['projects'] = Project.objects.all().order_by('-created_at')
         return context
 
 
@@ -60,6 +70,7 @@ class IssueDetailView(LoginRequiredMixin, DetailView):
         context['detail_form'] = IssueSolutionDetailForm()
         context['status_choices'] = Issue.STATUS_CHOICES
         context['logs'] = issue.logs.select_related('operator').all()
+        context['abnormal_samples'] = issue.abnormal_samples.select_related('customer', 'assignee', 'solution').order_by('-created_at')
         return context
 
 
@@ -236,3 +247,85 @@ class IssueSolutionRecordDeleteView(LoginRequiredMixin, View):
         record.delete()
         messages.success(request, '解决记录已删除')
         return redirect('issue:issue_detail', pk=pk)
+
+
+class IssueAbnormalSampleCreateView(LoginRequiredMixin, View):
+    """在问题单内创建异常样品"""
+    template_name = 'issue/issue_abnormal_sample_form.html'
+
+    def _prepare_form(self, form, issue):
+        """根据问题单自动填充并限制表单选项"""
+        form.fields['customer'].queryset = Customer.objects.all().order_by('customer_code')
+        form.fields['project'].queryset = Project.objects.filter(pk=issue.project.pk)
+        form.fields['solution'].queryset = Solution.objects.filter(pk=issue.solution.pk)
+
+        # 隐藏并固定关联字段
+        for field_name in ('project', 'customer', 'solution'):
+            form.fields[field_name].widget = forms.HiddenInput()
+            form.fields[field_name].required = True
+
+        form.initial['project'] = issue.project.pk
+        form.initial['solution'] = issue.solution.pk
+        if issue.project.customer:
+            form.fields['customer'].queryset = Customer.objects.filter(pk=issue.project.customer.pk)
+            form.initial['customer'] = issue.project.customer.pk
+        return form
+
+    def get(self, request, pk):
+        issue = get_object_or_404(Issue, pk=pk)
+        if not issue.project.customer:
+            messages.error(request, '该项目未设置客户，无法创建异常样品')
+            return redirect('issue:issue_detail', pk=pk)
+
+        form = AbnormalSampleForm()
+        form = self._prepare_form(form, issue)
+        return render(request, self.template_name, {'issue': issue, 'form': form})
+
+    def post(self, request, pk):
+        issue = get_object_or_404(Issue, pk=pk)
+        if not issue.project.customer:
+            messages.error(request, '该项目未设置客户，无法创建异常样品')
+            return redirect('issue:issue_detail', pk=pk)
+
+        form = AbnormalSampleForm(request.POST)
+        form = self._prepare_form(form, issue)
+
+        if form.is_valid():
+            sample = form.save(commit=False)
+            sample.issue = issue
+            sample.created_by = request.user
+            sample.status = 'pending_analysis'
+            sample.save()
+            form.save_m2m()
+
+            # 处理日志获取多选
+            logs_collected = request.POST.getlist('logs_collected')
+            if logs_collected:
+                sample.logs_collected = logs_collected
+                sample.save(update_fields=['logs_collected'])
+
+            # 记录项目时间线
+            if sample.project:
+                from project.signals import record_project_activity, build_create_description
+                record_project_activity(
+                    project=sample.project,
+                    actor=request.user,
+                    action='create',
+                    instance=sample,
+                    description=build_create_description(sample, 'abnormal_sample')
+                )
+
+            # 创建操作日志
+            from abnormal.models import AbnormalLog
+            AbnormalLog.objects.create(
+                abnormal_sample=sample,
+                operator=request.user,
+                action='创建异常样品',
+                new_status='pending_analysis',
+                comment=f'客户: {sample.customer.customer_code}'
+            )
+
+            messages.success(request, f'异常样品 {sample.sample_number} 创建成功')
+            return redirect('issue:issue_detail', pk=pk)
+
+        return render(request, self.template_name, {'issue': issue, 'form': form})

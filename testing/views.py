@@ -332,10 +332,6 @@ class TestItemCreateView(LoginRequiredMixin, CreateView):
                             'test_item': self.object,
                         }
                     )
-                # 自动关联节点上的异常样品
-                linked = _link_abnormal_samples_to_test(self.object, source_node.abnormal_samples.all(), self.request.user)
-                if linked:
-                    messages.success(self.request, f'已自动关联 {linked} 个异常样品')
             except (SankeyNode.DoesNotExist, FAETask.DoesNotExist):
                 pass
         
@@ -994,18 +990,14 @@ class TestFlowSankeyView(LoginRequiredMixin, View):
         if not task.sankey_nodes.exists():
             self._init_sankey_from_tests(task)
         
-        from abnormal.models import AbnormalSample
         context = {
             'fae_task': task,
             'test_content_choices': TestContent.objects.filter(is_active=True).order_by('order', 'id'),
             'test_count': task.test_items.count(),
-            'abnormal_samples': list(AbnormalSample.objects.filter(
-                sankey_nodes__fae_task=task
-            ).values('id', 'sample_number', 'status')),
             'abnormal_reasons': list(AbnormalReason.objects.filter(is_active=True).order_by('order', 'name').values('id', 'name')),
         }
         return render(request, self.template_name, context)
-    
+
     def _init_sankey_from_tests(self, task):
         """从现有测试项初始化桑基图"""
         from django.db import transaction
@@ -1111,14 +1103,10 @@ class SankeyEmbedView(LoginRequiredMixin, View):
             init_view = TestFlowSankeyView()
             init_view._init_sankey_from_tests(task)
         
-        from abnormal.models import AbnormalSample
         context = {
             'fae_task': task,
             'test_content_choices': TestContent.objects.filter(is_active=True).order_by('order', 'id'),
             'test_count': task.test_items.count(),
-            'abnormal_samples': list(AbnormalSample.objects.filter(
-                sankey_nodes__fae_task=task
-            ).values('id', 'sample_number', 'status')),
             'abnormal_reasons': list(AbnormalReason.objects.filter(is_active=True).order_by('order', 'name').values('id', 'name')),
         }
         return render(request, self.template_name, context)
@@ -1199,11 +1187,6 @@ class SankeyDataView(LoginRequiredMixin, View):
         # 先生成所有节点的显示名称
         node_display_names = {n.id: get_node_display_name(n) for n in nodes_raw}
         
-        # 批量获取节点关联的异常样品ID
-        node_abnormal_ids = {}
-        for node in nodes_raw:
-            node_abnormal_ids[node.id] = list(node.abnormal_samples.values_list('id', flat=True))
-        
         nodes = []
         for node in nodes_raw:
             nodes.append({
@@ -1213,7 +1196,6 @@ class SankeyDataView(LoginRequiredMixin, View):
                 'nodeType': node.node_type,
                 'categoryReason': node.category_reason,
                 'testItemId': node.test_item_id,
-                'abnormalIds': node_abnormal_ids.get(node.id, []),
                 'depth': node_depths.get(node.id, 0),
                 'customY': node.custom_y,
                 'itemStyle': {'color': color_map.get(node.node_type, '#94a3b8')},
@@ -1539,14 +1521,7 @@ class SankeyNodesMergeView(LoginRequiredMixin, View):
                 quantity=total,
                 node_type=target_node_type,
             )
-            
-            # 自动将被合流节点的异常样品绑定到合流节点
-            all_samples = []
-            for node in nodes:
-                all_samples.extend(node.abnormal_samples.all())
-            if all_samples:
-                target.abnormal_samples.add(*all_samples)
-            
+
             for node in nodes:
                 qty = int(quantities.get(str(node.id), node.quantity))
                 SankeyEdge.objects.create(
@@ -1602,168 +1577,6 @@ class SankeyNodeDeleteView(LoginRequiredMixin, View):
         return JsonResponse({'success': True})
 
 
-class SankeyNodeAbnormalAttachView(LoginRequiredMixin, View):
-    """同步节点与异常样品的绑定关系"""
-    def post(self, request, node_id):
-        node = get_object_or_404(SankeyNode, pk=node_id)
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': '无效的JSON数据'})
-        
-        abnormal_ids = data.get('abnormal_ids', [])
-        abnormal_sample_id = data.get('abnormal_sample_id')
-        
-        if abnormal_sample_id:
-            abnormal_ids = [abnormal_sample_id]
-        
-        from abnormal.models import AbnormalSample
-        target_ids = set(int(i) for i in abnormal_ids if i)
-        
-        # 父节点校验：有父节点时只能从父节点绑定的样品中分配
-        parent_nodes = list(node.parent_nodes.all())
-        if parent_nodes:
-            parent_sample_ids = set()
-            for p in parent_nodes:
-                parent_sample_ids.update(p.abnormal_samples.values_list('id', flat=True))
-            
-            if not parent_sample_ids:
-                return JsonResponse({'success': False, 'error': '父节点未绑定异常样品，无法绑定'})
-            
-            if len(target_ids) > len(parent_sample_ids):
-                return JsonResponse({
-                    'success': False,
-                    'error': f'绑定数量（{len(target_ids)}）超过父节点异常样品数量（{len(parent_sample_ids)}）'
-                })
-            
-            if not target_ids.issubset(parent_sample_ids):
-                return JsonResponse({'success': False, 'error': '只能绑定父节点已绑定的异常样品'})
-            
-            # 兄弟节点校验：同一父节点下的其他子节点已绑定的样品不能再绑定
-            sibling_bound_ids = set()
-            for p in parent_nodes:
-                for sibling in p.child_nodes.all():
-                    if sibling.pk != node.pk:
-                        sibling_bound_ids.update(sibling.abnormal_samples.values_list('id', flat=True))
-            
-            conflict_ids = target_ids & sibling_bound_ids
-            if conflict_ids:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'有 {len(conflict_ids)} 个样品已被兄弟节点绑定'
-                })
-        
-        current_ids = set(node.abnormal_samples.values_list('id', flat=True))
-        
-        to_add = target_ids - current_ids
-        to_remove = current_ids - target_ids
-        
-        if to_add:
-            samples_to_add = AbnormalSample.objects.filter(pk__in=to_add)
-            node.abnormal_samples.add(*samples_to_add)
-        if to_remove:
-            samples_to_remove = AbnormalSample.objects.filter(pk__in=to_remove)
-            node.abnormal_samples.remove(*samples_to_remove)
-        
-        return JsonResponse({
-            'success': True,
-            'added': len(to_add),
-            'removed': len(to_remove),
-        })
-
-
-class SankeyNodeGroupCreateView(LoginRequiredMixin, View):
-    """在子类节点或异常分类节点上创建异常样品组，并自动绑定组内所有样品到该节点"""
-    def post(self, request, node_id):
-        node = get_object_or_404(SankeyNode, pk=node_id)
-        
-        # 只允许子类节点和异常分类节点创建异常样品组
-        if node.node_type not in ('subcategory', 'abnormal_category'):
-            return JsonResponse({'success': False, 'error': '只有子类节点或异常分类节点可以创建异常样品组'})
-        
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': '无效的JSON数据'})
-        
-        from abnormal.models import AbnormalSampleGroup, AbnormalSample
-        from abnormal.forms import AbnormalSampleGroupForm
-        
-        # 准备表单数据
-        form_data = {
-            'customer': data.get('customer_id'),
-            'priority': data.get('priority', 'normal'),
-            'status': data.get('status', 'pending_analysis'),
-            'abnormal_description': data.get('abnormal_description', ''),
-            'total_count': int(data.get('total_count', 1)),
-        }
-        
-        # 可选字段
-        if data.get('project_id'):
-            form_data['project'] = data.get('project_id')
-        if data.get('solution_id'):
-            form_data['solution'] = data.get('solution_id')
-        if data.get('assignee_id'):
-            form_data['assignee'] = data.get('assignee_id')
-        if data.get('test_item_id'):
-            form_data['test_item'] = data.get('test_item_id')
-        
-        form = AbnormalSampleGroupForm(form_data)
-        if not form.is_valid():
-            errors = []
-            for field, errs in form.errors.items():
-                errors.append(f"{form.fields[field].label if field in form.fields else field}: {', '.join(errs)}")
-            return JsonResponse({'success': False, 'error': '；'.join(errors)})
-        
-        # 保存组
-        group = form.save(commit=False)
-        group.created_by = request.user
-        group.save()
-        
-        # 批量创建异常样品
-        total_count = form.cleaned_data.get('total_count', 1)
-        created_samples = []
-        for i in range(total_count):
-            sample = AbnormalSample(
-                customer=group.customer,
-                project=group.project,
-                solution=group.solution,
-                priority=group.priority,
-                status=group.status,
-                assignee=group.assignee,
-                test_item=group.test_item,
-                group=group,
-                abnormal_summary=group.abnormal_summary,
-                abnormal_description=group.abnormal_description,
-                created_by=request.user,
-            )
-            sample.save()
-            created_samples.append(sample)
-            
-            # 如果组关联了测试项，自动创建关联
-            if group.test_item:
-                from testing.models import TestAbnormalRelation
-                TestAbnormalRelation.objects.get_or_create(
-                    test_item=group.test_item,
-                    abnormal_sample=sample
-                )
-        
-        # 更新组的实际数量
-        group.total_count = group.samples.count()
-        group.save(update_fields=['total_count'])
-        
-        # 将所有样品绑定到桑基图节点
-        for sample in created_samples:
-            node.abnormal_samples.add(sample)
-        
-        return JsonResponse({
-            'success': True,
-            'group_id': group.id,
-            'group_number': group.group_number,
-            'sample_count': len(created_samples)
-        })
-
-
 class SankeyNodeUpdateYView(LoginRequiredMixin, View):
     """更新节点自定义Y坐标"""
     def post(self, request, node_id):
@@ -1772,7 +1585,7 @@ class SankeyNodeUpdateYView(LoginRequiredMixin, View):
             data = json.loads(request.body)
         except json.JSONDecodeError:
             return JsonResponse({'success': False, 'error': '无效的JSON数据'})
-        
+
         custom_y = data.get('custom_y')
         if custom_y is None:
             node.custom_y = None
@@ -1781,52 +1594,6 @@ class SankeyNodeUpdateYView(LoginRequiredMixin, View):
                 node.custom_y = float(custom_y)
             except (ValueError, TypeError):
                 return JsonResponse({'success': False, 'error': 'Y坐标必须是数字'})
-        
+
         node.save(update_fields=['custom_y'])
         return JsonResponse({'success': True, 'custom_y': node.custom_y})
-
-
-class SankeyNodeAbnormalDetachView(LoginRequiredMixin, View):
-    """解除节点与异常样品的关联"""
-    def post(self, request, node_id):
-        node = get_object_or_404(SankeyNode, pk=node_id)
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': '无效的JSON数据'})
-        
-        abnormal_id = data.get('abnormal_id')
-        if not abnormal_id:
-            return JsonResponse({'success': False, 'error': '请选择异常样品'})
-        
-        node.abnormal_samples.remove(abnormal_id)
-        return JsonResponse({'success': True})
-
-
-class SankeyTaskAbnormalsView(LoginRequiredMixin, View):
-    """获取任务下所有与桑基图节点关联的异常样品"""
-    def get(self, request, fae_task_id):
-        from fae.models import FAETask
-        task = get_object_or_404(FAETask, pk=fae_task_id)
-        
-        from abnormal.models import AbnormalSample
-        abnormals = AbnormalSample.objects.filter(
-            sankey_nodes__fae_task=task
-        ).select_related('customer', 'assignee', 'group').prefetch_related('sankey_nodes').distinct()
-        
-        result = []
-        for abn in abnormals:
-            result.append({
-                'id': abn.id,
-                'sample_number': abn.sample_number,
-                'status': abn.status,
-                'status_display': abn.get_status_display(),
-                'priority': abn.priority,
-                'priority_display': abn.get_priority_display(),
-                'node_ids': list(abn.sankey_nodes.filter(fae_task=task).values_list('id', flat=True)),
-                'customer_code': abn.customer.customer_code if abn.customer else '',
-                'group_id': abn.group_id,
-                'group_number': abn.group.group_number if abn.group else None,
-            })
-        
-        return JsonResponse({'abnormals': result})

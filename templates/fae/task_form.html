@@ -5,6 +5,32 @@
 
 {% block extra_js %}
 {{ form.media }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const projectSelect = document.getElementById('id_project');
+    const planSelect = document.getElementById('id_production_plan');
+    if (projectSelect && planSelect) {
+        projectSelect.addEventListener('change', function() {
+            const projectId = this.value;
+            planSelect.innerHTML = '<option value="">请选择生产方案</option>';
+            if (!projectId) return;
+            fetch(`/fae/api/project-production-plans/?project_id=${projectId}`, {
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
+            })
+                .then(r => r.json())
+                .then(data => {
+                    data.plans.forEach(plan => {
+                        const opt = document.createElement('option');
+                        opt.value = plan.id;
+                        opt.textContent = plan.name;
+                        planSelect.appendChild(opt);
+                    });
+                })
+                .catch(e => console.error('加载生产方案失败', e));
+        });
+    }
+});
+</script>
 {% endblock %}
 
 {% block content %}
@@ -17,6 +43,41 @@
             {% endif %}
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 所属项目 -->
+                {% if not request.GET.project and not form.instance.project %}
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">所属项目</label>
+                    <select name="project" id="id_project"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择项目</option>
+                        {% for project in form.project.field.queryset %}
+                        <option value="{{ project.pk }}" {% if form.project.value|stringformat:"s" == project.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ project }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.project.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.project.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- 生产方案 -->
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">生产方案 <span class="text-red-500">*</span></label>
+                    <select name="production_plan" id="id_production_plan" required
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">请选择生产方案</option>
+                        {% for plan in form.production_plan.field.queryset %}
+                        <option value="{{ plan.pk }}" {% if form.production_plan.value|stringformat:"s" == plan.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ plan.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.production_plan.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.production_plan.errors.0 }}</p>
+                    {% endif %}
+                </div>
                 <!-- 负责人 -->
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">负责人 <span class="text-red-500">*</span></label>
@@ -35,13 +96,44 @@
                 </div>
 
                 <!-- 所属客户 -->
+                {% if request.GET.project or form.instance.project %}
+                    {% if form.customer.value %}
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">所属客户</label>
+                        <div class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-slate-300">
+                            {{ form.customer.field.queryset.first.customer_code|default:"未设置" }}
+                        </div>
+                        <div class="hidden">
+                            <select name="customer">
+                                {% for customer in form.customer.field.queryset %}
+                                <option value="{{ customer.pk }}" selected>{{ customer.customer_code }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">所属客户 <span class="text-red-500">*</span></label>
+                        <select name="customer" required
+                                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
+                            <option value="">请选择客户</option>
+                            {% for customer in form.customer.field.queryset %}
+                            <option value="{{ customer.pk }}">{{ customer.customer_code }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if form.customer.errors %}
+                        <p class="text-red-400 text-xs mt-1">{{ form.customer.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                {% else %}
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">所属客户 <span class="text-red-500">*</span></label>
-                    <select name="customer" required
+                    <select name="customer" id="id_customer" required
                             class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500">
                         <option value="">请选择客户</option>
                         {% for customer in form.customer.field.queryset %}
-                        <option value="{{ customer.pk }}" {% if form.customer.value == customer.pk %}selected{% endif %}>
+                        <option value="{{ customer.pk }}" {% if form.customer.value|stringformat:"s" == customer.pk|stringformat:"s" %}selected{% endif %}>
                             {{ customer.customer_code }}
                         </option>
                         {% endfor %}
@@ -50,6 +142,7 @@
                     <p class="text-red-400 text-xs mt-1">{{ form.customer.errors.0 }}</p>
                     {% endif %}
                 </div>
+                {% endif %}
 
                 <!-- 任务类型 -->
                 <div>

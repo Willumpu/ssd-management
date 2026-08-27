@@ -5,6 +5,16 @@
 
 {% block content %}
 <div class="space-y-4 lg:space-y-6 animate-slide-in" id="daily-report">
+    <!-- 日报类型切换 -->
+    <div class="flex gap-2">
+        <span class="px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 text-sm">
+            FAE 业务日报
+        </span>
+        <a href="{% url 'fae:issue_daily_report' %}?date={{ report_date|date:'Y-m-d' }}{% if selected_assignee %}&user={{ selected_assignee.pk }}{% endif %}" class="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white text-sm transition-colors">
+            问题单日报
+        </a>
+    </div>
+
     <!-- 日期选择器 & 操作栏 -->
     <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
         <div class="flex items-center gap-3">

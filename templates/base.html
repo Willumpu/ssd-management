@@ -289,7 +289,7 @@
                 </a>
                 <a href="{% url 'testing:test_list' %}" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg {% if 'testing' in request.path %}bg-blue-600 text-white{% else %}hover:bg-slate-800{% endif %}">
                     <i class="fas fa-vial w-5"></i>
-                    <span class="font-medium">测试跟踪管理</span>
+                    <span class="font-medium">批量测试跟踪</span>
                 </a>
                 <a href="{% url 'abnormal:abnormal_list' %}" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg {% if 'abnormal' in request.path %}bg-blue-600 text-white{% else %}hover:bg-slate-800{% endif %}">
                     <i class="fas fa-exclamation-triangle w-5"></i>
@@ -371,7 +371,7 @@
                 
                 <a href="{% url 'testing:test_list' %}" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-all group {% if 'testing' in request.path %}bg-slate-800{% endif %}">
                     <i class="fas fa-vial w-5 text-slate-400 group-hover:text-cyan-400"></i>
-                    <span class="font-medium">测试跟踪管理</span>
+                    <span class="font-medium">批量测试跟踪</span>
                 </a>
                 
                 <a href="{% url 'abnormal:abnormal_list' %}" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-all group {% if 'abnormal' in request.path %}bg-slate-800{% endif %}">

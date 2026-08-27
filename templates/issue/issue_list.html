@@ -46,7 +46,7 @@
             <div class="lg:flex-[2]">
                 <label class="block text-xs lg:text-sm text-slate-400 mb-1 lg:mb-2">搜索</label>
                 <div class="relative">
-                    <input type="text" name="search" placeholder="搜索编号、项目、方案、提交人..." value="{{ request.GET.search|default:'' }}"
+                    <input type="text" name="search" placeholder="搜索概述、编号、方案、提交人..." value="{{ request.GET.search|default:'' }}"
                         class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
                 </div>
@@ -67,8 +67,7 @@
         <table class="w-full text-left">
             <thead class="bg-slate-900/50 text-slate-400 text-xs uppercase">
                 <tr>
-                    <th class="px-6 py-4 font-medium whitespace-nowrap">问题单编号</th>
-                    <th class="px-6 py-4 font-medium whitespace-nowrap">项目</th>
+                    <th class="px-6 py-4 font-medium whitespace-nowrap">问题概述</th>
                     <th class="px-6 py-4 font-medium whitespace-nowrap">方案</th>
                     <th class="px-6 py-4 font-medium whitespace-nowrap">提交人</th>
                     <th class="px-6 py-4 font-medium whitespace-nowrap">优先级</th>
@@ -80,8 +79,10 @@
                 {% for issue in issues %}
                 <tr class="table-row-hover border-l-2 border-transparent hover:border-blue-500 cursor-pointer"
                     onclick="window.location.href='{% url 'issue:issue_detail' issue.pk %}'">
-                    <td class="px-6 py-4 whitespace-nowrap mono text-blue-400">{{ issue.issue_number }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.project|default:'-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-slate-200">
+                        <div class="max-w-xs truncate" title="{{ issue.summary }}">{{ issue.summary }}</div>
+                        <div class="text-xs text-slate-500 mono mt-0.5">{{ issue.issue_number }}</div>
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.solution|default:'-' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-slate-300">{{ issue.submitter.get_full_name|default:issue.submitter.username }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -94,7 +95,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="px-6 py-12 text-center text-slate-500">
+                    <td colspan="6" class="px-6 py-12 text-center text-slate-500">
                         <div class="flex flex-col items-center gap-4">
                             <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
                                 <i class="fas fa-clipboard-list text-2xl text-slate-600"></i>
@@ -115,15 +116,12 @@
     <div class="lg:hidden space-y-3">
         {% for issue in issues %}
         <a href="{% url 'issue:issue_detail' issue.pk %}" class="block glass rounded-xl p-4 border border-slate-700/50 hover:border-blue-500/30 transition-all active:scale-98">
-            <div class="flex justify-between items-start mb-2">
-                <span class="mono text-blue-400 text-sm">{{ issue.issue_number }}</span>
+            <div class="flex justify-between items-start mb-2 gap-2">
+                <span class="text-white text-sm font-medium truncate flex-1" title="{{ issue.summary }}">{{ issue.summary }}</span>
                 <span class="px-2 py-0.5 rounded text-xs {{ issue.get_status_display_class }}">{{ issue.get_status_display }}</span>
             </div>
+            <div class="text-xs text-slate-500 mono mb-2">{{ issue.issue_number }}</div>
             <div class="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                    <span class="text-slate-500 text-xs">项目</span>
-                    <p class="text-white truncate">{{ issue.project|default:'-' }}</p>
-                </div>
                 <div>
                     <span class="text-slate-500 text-xs">方案</span>
                     <p class="text-white truncate">{{ issue.solution|default:'-' }}</p>
@@ -136,9 +134,10 @@
                     <span class="text-slate-500 text-xs">优先级</span>
                     <p class="text-slate-300">{{ issue.get_priority_display }}</p>
                 </div>
-            </div>
-            <div class="mt-2 pt-2 border-t border-slate-800">
-                <span class="text-xs text-slate-500">{{ issue.created_at|date:'Y-m-d H:i' }}</span>
+                <div>
+                    <span class="text-slate-500 text-xs">提交时间</span>
+                    <p class="text-slate-300">{{ issue.created_at|date:'Y-m-d H:i' }}</p>
+                </div>
             </div>
         </a>
         {% empty %}

@@ -118,6 +118,8 @@ class AbnormalSample(models.Model):
     ]
     
     sample_number = models.CharField('样品编号', max_length=20, unique=True, editable=False)
+    issue = models.ForeignKey('issue.Issue', on_delete=models.CASCADE, verbose_name='关联问题单',
+                               null=True, blank=True, related_name='abnormal_samples')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, verbose_name='所属客户')
     project = models.ForeignKey('project.Project', on_delete=models.SET_NULL, verbose_name='所属项目',
                                  null=True, blank=True, related_name='abnormal_samples')

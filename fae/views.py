@@ -21,6 +21,7 @@ from testing.models import TestItem, TestItemLog, TestComment
 from abnormal.models import AbnormalSample, AbnormalLog, TestRecordEntry
 from rd_requirement.models import RDRequirement, RequirementLog
 from solution.models import Solution
+from project.models import ProductionPlan
 from datetime import datetime, timedelta
 
 
@@ -582,9 +583,17 @@ class FAETaskCreateView(LoginRequiredMixin, CreateView):
         project_id = self.request.GET.get('project')
         if project_id:
             from project.models import Project
-            form.fields['project'].queryset = Project.objects.filter(pk=project_id)
-            form.initial['project'] = int(project_id)
-            # project 字段在模板中根据 request.GET.project 条件隐藏/显示
+            project = Project.objects.filter(pk=project_id).first()
+            if project:
+                form.fields['project'].queryset = Project.objects.filter(pk=project_id)
+                form.initial['project'] = int(project_id)
+                form.fields['production_plan'].queryset = ProductionPlan.objects.filter(project=project)
+                if project.customer:
+                    form.fields['customer'].queryset = Customer.objects.filter(pk=project.customer.pk)
+                    form.initial['customer'] = project.customer.pk
+        else:
+            form.fields['production_plan'].queryset = ProductionPlan.objects.none()
+        # project/customer 字段在模板中根据 request.GET.project 条件隐藏/显示
         return form
     
     def form_valid(self, form):
@@ -616,10 +625,20 @@ class FAETaskUpdateView(LoginRequiredMixin, UpdateView):
     FIELD_DISPLAY_NAMES = {
         'assignee': '负责人',
         'customer': '客户',
+        'production_plan': '生产方案',
         'task_type': '任务类型',
         'description': '任务描述',
         'test_items': '关联测试项',
     }
+    
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        project = form.instance.project if form.instance and form.instance.pk else None
+        if project:
+            form.fields['production_plan'].queryset = ProductionPlan.objects.filter(project=project)
+        else:
+            form.fields['production_plan'].queryset = ProductionPlan.objects.none()
+        return form
     
     def form_valid(self, form):
         # 获取编辑前的值
@@ -660,6 +679,11 @@ class FAETaskUpdateView(LoginRequiredMixin, UpdateView):
                 old_id = old_value.id if old_value else None
                 new_id = new_value.id if new_value else None
                 changed = old_id != new_id
+            elif field == 'production_plan':
+                # ForeignKey 比较 ID
+                old_id = old_value.id if old_value else None
+                new_id = new_value.id if new_value else None
+                changed = old_id != new_id
             elif field == 'description':
                 # 富文本字段，去除空白后比较
                 old_clean = old_value.strip() if old_value else ''
@@ -677,6 +701,9 @@ class FAETaskUpdateView(LoginRequiredMixin, UpdateView):
                 elif field == 'customer':
                     old_display = old_value.customer_code if old_value else '无'
                     new_display = new_value.customer_code if new_value else '无'
+                elif field == 'production_plan':
+                    old_display = str(old_value) if old_value else '无'
+                    new_display = str(new_value) if new_value else '无'
                 elif field == 'task_type':
                     old_display = dict(FAETask.TASK_TYPE_CHOICES).get(old_value, old_value)
                     new_display = dict(FAETask.TASK_TYPE_CHOICES).get(new_value, new_value)
@@ -962,6 +989,16 @@ class FAETaskCommentDeleteView(LoginRequiredMixin, View):
 
 
 
+class ProjectProductionPlansView(LoginRequiredMixin, View):
+    """根据项目 ID 返回生产方案列表（AJAX 联动）"""
+    def get(self, request):
+        project_id = request.GET.get('project_id')
+        if not project_id:
+            return JsonResponse({'plans': []})
+        plans = ProductionPlan.objects.filter(project_id=int(project_id)).values('id', 'name')
+        return JsonResponse({'plans': list(plans)})
+
+
 class DailyReportView(LoginRequiredMixin, View):
     """FAE 日报生成 - 今日任务 / 今日行动 / 今日结论"""
     template_name = 'fae/daily_report.html'
@@ -1175,6 +1212,100 @@ class UserSettingsView(LoginRequiredMixin, View):
 
         
         return redirect('fae:user_settings')
+
+
+class IssueDailyReportView(LoginRequiredMixin, View):
+    """问题单日报生成 - 今日创建 / 今日跟踪 / 今日关闭"""
+    template_name = 'fae/issue_daily_report.html'
+
+    def get(self, request):
+        date_str = request.GET.get('date', '').strip()
+        if date_str:
+            try:
+                report_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                report_date = timezone.now().date()
+        else:
+            report_date = timezone.now().date()
+
+        # FAE 用户筛选
+        user_id = request.GET.get('user', '').strip()
+        selected_user = None
+        if user_id:
+            try:
+                selected_user = User.objects.get(pk=int(user_id), role__in=['fae', 'fae_leader'])
+            except (ValueError, User.DoesNotExist):
+                selected_user = None
+
+        from issue.models import Issue, IssueSolutionRecord, IssueSolutionDetail
+
+        # 1. 今日创建问题单
+        created_issues = Issue.objects.select_related('project', 'solution', 'submitter').filter(
+            created_at__date=report_date
+        )
+        if selected_user:
+            created_issues = created_issues.filter(submitter=selected_user)
+        created_issues = created_issues.order_by('-created_at')
+
+        # 2. 今日跟踪问题单（今日新增的解决记录明细）
+        detail_qs = IssueSolutionDetail.objects.select_related(
+            'solution_record__issue__project',
+            'solution_record__issue__solution',
+            'created_by'
+        ).filter(
+            created_at__date=report_date
+        )
+        if selected_user:
+            detail_qs = detail_qs.filter(created_by=selected_user)
+        detail_qs = detail_qs.order_by('solution_record__issue_id', 'created_at')
+
+        # 按问题单分组：{issue_id: {'issue': issue, 'records': {record_id: {'record': record, 'details': []}}}}
+        tracked_map = {}
+        for detail in detail_qs:
+            issue = detail.solution_record.issue
+            record = detail.solution_record
+            if issue.id not in tracked_map:
+                tracked_map[issue.id] = {'issue': issue, 'records': {}}
+            if record.id not in tracked_map[issue.id]['records']:
+                tracked_map[issue.id]['records'][record.id] = {'record': record, 'details': []}
+            tracked_map[issue.id]['records'][record.id]['details'].append(detail)
+
+        # 转换为列表结构
+        tracked_issues = []
+        for item in tracked_map.values():
+            tracked_issues.append({
+                'issue': item['issue'],
+                'records': [
+                    {'record': r['record'], 'details': r['details']}
+                    for r in item['records'].values()
+                ]
+            })
+        tracked_issues.sort(key=lambda x: x['issue'].created_at, reverse=True)
+
+        # 3. 今日关闭问题单
+        closed_issues = Issue.objects.select_related('project', 'solution', 'submitter').filter(
+            status='closed', closed_at__date=report_date
+        )
+        if selected_user:
+            closed_issues = closed_issues.filter(submitter=selected_user)
+        closed_issues = closed_issues.order_by('-closed_at')
+
+        context = {
+            'report_date': report_date,
+            'prev_date': report_date - timedelta(days=1),
+            'next_date': report_date + timedelta(days=1),
+            'selected_user': selected_user,
+            'fae_users': User.objects.filter(role__in=['fae', 'fae_leader']).order_by('username'),
+            'created_issues': created_issues,
+            'tracked_issues': tracked_issues,
+            'closed_issues': closed_issues,
+            'stats': {
+                'created': created_issues.count(),
+                'tracked': len(tracked_issues),
+                'closed': closed_issues.count(),
+            }
+        }
+        return render(request, self.template_name, context)
 
 
 # ==================== 日志分析工具 API ====================

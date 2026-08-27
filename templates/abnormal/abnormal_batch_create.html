@@ -10,10 +10,17 @@
 <div class="max-w-4xl mx-auto animate-slide-in">
     <!-- 页面标题 -->
     <div class="flex items-center gap-4 mb-6">
+        {% if request.GET.issue %}
+        <a href="{% url 'issue:issue_detail' request.GET.issue %}" class="text-slate-400 hover:text-white transition-colors">
+            <i class="fas fa-arrow-left text-lg"></i>
+        </a>
+        <h2 class="text-xl font-semibold text-white">批量创建异常样品（问题单）</h2>
+        {% else %}
         <a href="{% url 'abnormal:abnormal_list' %}" class="text-slate-400 hover:text-white transition-colors">
             <i class="fas fa-arrow-left text-lg"></i>
         </a>
         <h2 class="text-xl font-semibold text-white">批量创建异常样品</h2>
+        {% endif %}
     </div>
 
     <!-- 表单 -->
@@ -40,7 +47,7 @@
                 <!-- 客户 -->
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">客户 <span class="text-red-400">*</span></label>
-                    {% if form.auto_from_test_item %}
+                    {% if form.auto_from_test_item or form.auto_from_issue %}
                     <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
                         {% with cust=form.customer.field.queryset.first %}{{ cust.customer_code|default:"-" }}{% endwith %}
                     </div>
@@ -61,7 +68,7 @@
                 <!-- 项目 -->
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">项目</label>
-                    {% if form.auto_from_test_item and form.project.value %}
+                    {% if form.auto_from_test_item or form.auto_from_issue %}
                     <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
                         {% with proj=form.project.field.queryset.first %}{{ proj.project_name|default:"-" }}{% endwith %}
                     </div>
@@ -80,7 +87,7 @@
                 <!-- 样品方案 -->
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">样品方案</label>
-                    {% if form.auto_from_test_item and form.solution.value %}
+                    {% if form.auto_from_test_item or form.auto_from_issue %}
                     <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-400">
                         {% with sol=form.solution.field.queryset.first %}{{ sol.solution_number|default:"-" }}{% endwith %}
                     </div>
@@ -168,10 +175,14 @@
 
         <!-- 异常概述 -->
         <div class="p-6 border-b border-slate-800">
-            <h3 class="font-semibold text-white mb-4">异常概述</h3>
-            <input type="text" name="abnormal_summary" value="{{ form.abnormal_summary.value|default:'' }}" maxlength="200"
-                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500"
-                   placeholder="请简要描述异常现象，所有样品将继承此概述（200字以内）">
+            <h3 class="font-semibold text-white mb-4">异常概述 <span class="text-red-400">*</span></h3>
+            <select name="abnormal_summary" required
+                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500">
+                <option value="">请选择异常原因</option>
+                {% for reason in form.abnormal_summary.field.queryset %}
+                <option value="{{ reason.pk }}" {% if form.abnormal_summary.value|stringformat:"s" == reason.pk|stringformat:"s" %}selected{% endif %}>{{ reason.name }}</option>
+                {% endfor %}
+            </select>
             {% if form.abnormal_summary.errors %}
             <p class="text-red-400 text-xs mt-1">{{ form.abnormal_summary.errors.0 }}</p>
             {% endif %}
@@ -185,9 +196,15 @@
 
         <!-- 按钮 -->
         <div class="p-6 flex justify-end gap-3">
+            {% if request.GET.issue %}
+            <a href="{% url 'issue:issue_detail' request.GET.issue %}" class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
+                取消
+            </a>
+            {% else %}
             <a href="{% url 'abnormal:abnormal_list' %}" class="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all">
                 取消
             </a>
+            {% endif %}
             <button type="submit" class="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-all shadow-lg shadow-red-600/20">
                 批量创建
             </button>

@@ -79,6 +79,14 @@
                     <p class="text-red-400 text-xs mt-1">{{ form.status.errors.0 }}</p>
                     {% endif %}
                 </div>
+
+                <div class="md:col-span-2 lg:col-span-3">
+                    <label class="block text-sm text-slate-400 mb-2">问题概述 <span class="text-red-400">*</span></label>
+                    {{ form.summary }}
+                    {% if form.summary.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.summary.errors.0 }}</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
 

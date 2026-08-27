@@ -4,6 +4,7 @@
 from django import forms
 from django_ckeditor_5.widgets import CKEditor5Widget
 from .models import AbnormalSample, AbnormalSampleGroup, AbnormalComment
+from testing.models import AbnormalReason
 
 
 class AbnormalSampleGroupForm(forms.ModelForm):
@@ -88,6 +89,23 @@ class AbnormalSampleBatchCreateForm(forms.ModelForm):
         self.fields['test_item'].queryset = test_item_qs
         self.fields['test_item'].required = False
         self.fields['test_item'].empty_label = "请选择关联测试项（可选）"
+        
+        # 异常概述只能从异常原因中选择
+        self.fields['abnormal_summary'] = forms.ModelChoiceField(
+            queryset=AbnormalReason.objects.filter(is_active=True).order_by('order', 'id'),
+            required=True,
+            label='异常概述',
+            empty_label='请选择异常原因',
+        )
+        # 编辑模式下，根据当前 abnormal_summary 文本匹配异常原因
+        if self.instance and self.instance.pk and self.instance.abnormal_summary:
+            reason = AbnormalReason.objects.filter(name=self.instance.abnormal_summary, is_active=True).first()
+            if reason:
+                self.initial['abnormal_summary'] = reason.pk
+    
+    def clean_abnormal_summary(self):
+        reason = self.cleaned_data.get('abnormal_summary')
+        return reason.name if reason else ''
 
 
 class AbnormalSampleForm(forms.ModelForm):
@@ -126,6 +144,23 @@ class AbnormalSampleForm(forms.ModelForm):
         from fae.models import User
         self.fields['assignee'].queryset = User.objects.filter(role__in=['fae', 'fae_leader'])
         self.fields['assignee'].required = True
+        
+        # 异常概述只能从异常原因中选择
+        self.fields['abnormal_summary'] = forms.ModelChoiceField(
+            queryset=AbnormalReason.objects.filter(is_active=True).order_by('order', 'id'),
+            required=True,
+            label='异常概述',
+            empty_label='请选择异常原因',
+        )
+        # 编辑模式下，根据当前 abnormal_summary 文本匹配异常原因
+        if self.instance and self.instance.pk and self.instance.abnormal_summary:
+            reason = AbnormalReason.objects.filter(name=self.instance.abnormal_summary, is_active=True).first()
+            if reason:
+                self.initial['abnormal_summary'] = reason.pk
+    
+    def clean_abnormal_summary(self):
+        reason = self.cleaned_data.get('abnormal_summary')
+        return reason.name if reason else ''
 
 
 class AbnormalCommentForm(forms.ModelForm):

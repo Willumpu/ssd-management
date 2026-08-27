@@ -246,6 +246,25 @@ class AbnormalSampleBatchCreateView(LoginRequiredMixin, CreateView):
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         
+        # 如果从问题单跳转过来，自动填充相关信息
+        issue_id = self.request.GET.get('issue')
+        if issue_id:
+            from issue.models import Issue
+            try:
+                issue = Issue.objects.select_related('project', 'project__customer', 'solution').get(pk=issue_id)
+                if issue.project:
+                    if issue.project.customer:
+                        form.fields['customer'].queryset = form.fields['customer'].queryset.filter(pk=issue.project.customer.pk)
+                        form.initial['customer'] = issue.project.customer.pk
+                    form.fields['project'].queryset = form.fields['project'].queryset.filter(pk=issue.project.pk)
+                    form.initial['project'] = issue.project.pk
+                if issue.solution:
+                    form.fields['solution'].queryset = form.fields['solution'].queryset.filter(pk=issue.solution.pk)
+                    form.initial['solution'] = issue.solution.pk
+                form.auto_from_issue = True
+            except Issue.DoesNotExist:
+                pass
+        
         # 如果从测试项跳转过来，自动填充相关信息
         test_item_id = self.request.GET.get('test_item')
         if test_item_id:
@@ -356,6 +375,20 @@ class AbnormalSampleBatchCreateView(LoginRequiredMixin, CreateView):
                 for sample in created_samples:
                     node.abnormal_samples.add(sample)
             except SankeyNode.DoesNotExist:
+                pass
+        
+        # 如果从问题单跳转过来，将样品关联到问题单
+        issue_id = self.request.GET.get('issue') or self.request.POST.get('issue')
+        if issue_id:
+            from issue.models import Issue
+            try:
+                issue = Issue.objects.get(pk=issue_id)
+                for sample in created_samples:
+                    sample.issue = issue
+                    sample.save(update_fields=['issue'])
+                messages.success(self.request, f'成功批量创建 {len(created_samples)} 个异常样品，并已关联到问题单 {issue.issue_number}')
+                return redirect('issue:issue_detail', pk=issue.pk)
+            except Issue.DoesNotExist:
                 pass
         
         messages.success(self.request, f'成功批量创建 {len(created_samples)} 个异常样品')

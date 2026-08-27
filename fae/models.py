@@ -94,6 +94,10 @@ class FAETask(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, verbose_name='所属客户')
     project = models.ForeignKey('project.Project', on_delete=models.SET_NULL, verbose_name='所属项目',
                                  null=True, blank=True, related_name='fae_tasks')
+    production_plan = models.ForeignKey(
+        'project.ProductionPlan', on_delete=models.SET_NULL, verbose_name='生产方案',
+        null=True, blank=True, related_name='fae_tasks'
+    )
     task_type = models.CharField('任务类型', max_length=20, choices=TASK_TYPE_CHOICES)
     status = models.CharField('任务状态', max_length=20, choices=TASK_STATUS_CHOICES, default='not_started')
     summary = models.CharField('任务概述', max_length=200, help_text='任务的简短概述或标题')
