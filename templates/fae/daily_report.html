@@ -298,19 +298,55 @@
 </style>
 
 <script>
-function copyReportText(elementId, btn) {
-    const text = document.getElementById(elementId).textContent.trim();
-    navigator.clipboard.writeText(text).then(() => {
-        const original = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i><span class="hidden sm:inline">已复制</span>';
-        btn.classList.add('text-green-400');
-        setTimeout(() => {
-            btn.innerHTML = original;
-            btn.classList.remove('text-green-400');
-        }, 2000);
-    }).catch(() => {
+function showCopied(btn) {
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i><span class="hidden sm:inline">已复制</span>';
+    btn.classList.add('text-green-400');
+    setTimeout(() => {
+        btn.innerHTML = original;
+        btn.classList.remove('text-green-400');
+    }, 2000);
+}
+
+function fallbackCopyText(text, btn) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    textarea.setAttribute('readonly', '');
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    try {
+        const success = document.execCommand('copy');
+        if (success) {
+            showCopied(btn);
+        } else {
+            alert('复制失败，请手动复制');
+        }
+    } catch (err) {
+        console.error('复制失败', err);
         alert('复制失败，请手动复制');
-    });
+    }
+    document.body.removeChild(textarea);
+}
+
+function copyReportText(elementId, btn) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const text = el.textContent.trim();
+    // 非 HTTPS 环境下 navigator.clipboard 不可用，使用 fallback
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            showCopied(btn);
+        }).catch(err => {
+            console.error('复制失败，尝试 fallback', err);
+            fallbackCopyText(text, btn);
+        });
+    } else {
+        fallbackCopyText(text, btn);
+    }
 }
 </script>
 {% endblock %}
