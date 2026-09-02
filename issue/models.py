@@ -22,6 +22,8 @@ class Issue(models.Model):
     PRIORITY_CHOICES = [
         ('p0', 'P0'),
         ('p1', 'P1'),
+        ('p2', 'P2'),
+        ('p3', 'P3'),
     ]
 
     issue_number = models.CharField('问题单编号', max_length=20, unique=True, editable=False)
@@ -38,6 +40,7 @@ class Issue(models.Model):
         related_name='submitted_issues', limit_choices_to={'role__in': ['fae', 'fae_leader']}
     )
     priority = models.CharField('优先级', max_length=10, choices=PRIORITY_CHOICES, default='p1')
+    jira_number = models.CharField('Jira编号', max_length=50, blank=True, default='')
     summary = models.CharField('问题概述', max_length=200, default='')
     abnormal_description = CKEditor5Field('异常描述')
 
@@ -88,9 +91,13 @@ class Issue(models.Model):
 
     def get_priority_display_class(self):
         """获取优先级显示样式"""
-        if self.priority == 'p0':
-            return 'bg-red-500/20 text-red-400 border border-red-500/30'
-        return 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+        classes = {
+            'p0': 'bg-red-500/20 text-red-400 border border-red-500/30',
+            'p1': 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+            'p2': 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+            'p3': 'bg-slate-500/20 text-slate-400 border border-slate-500/30',
+        }
+        return classes.get(self.priority, 'bg-slate-700 text-slate-400')
 
 
 class IssueSolutionRecord(models.Model):

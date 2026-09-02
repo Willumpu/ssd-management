@@ -80,6 +80,16 @@
                     {% endif %}
                 </div>
 
+                {% if form.instance.pk %}
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Jira编号</label>
+                    {{ form.jira_number }}
+                    {% if form.jira_number.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.jira_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <div class="md:col-span-2 lg:col-span-3">
                     <label class="block text-sm text-slate-400 mb-2">问题概述 <span class="text-red-400">*</span></label>
                     {{ form.summary }}

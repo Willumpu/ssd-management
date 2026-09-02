@@ -15,4 +15,5 @@ urlpatterns = [
     path('<int:pk>/solution-record/<int:record_pk>/detail/<int:detail_pk>/update/', views.IssueSolutionDetailUpdateView.as_view(), name='edit_solution_detail'),
     path('<int:pk>/solution-record/<int:record_pk>/delete/', views.IssueSolutionRecordDeleteView.as_view(), name='delete_solution_record'),
     path('<int:pk>/abnormal-samples/create/', views.IssueAbnormalSampleCreateView.as_view(), name='create_abnormal_sample'),
+    path('<int:pk>/report/', views.IssueReportView.as_view(), name='issue_report'),
 ]

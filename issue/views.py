@@ -1,10 +1,17 @@
 """问题单视图"""
+import base64
+import datetime
+import os
+import py7zr
+import shutil
+import tempfile
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy, reverse
 from django.contrib import messages
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.db import transaction, models
 from django import forms
@@ -329,3 +336,180 @@ class IssueAbnormalSampleCreateView(LoginRequiredMixin, View):
             return redirect('issue:issue_detail', pk=pk)
 
         return render(request, self.template_name, {'issue': issue, 'form': form})
+
+
+class IssueReportView(LoginRequiredMixin, View):
+    """生成问题单离线 HTML 报告
+
+    - 所有文本/图片日志直接内联到单个 HTML 文件中，双击即可完整查看
+    - 同时打包所有原始日志文件为 7z，以 base64 形式嵌入 HTML
+    - 页面提供"下载所有日志"按钮，点击可导出原始日志 7z 包
+    """
+    template_name = 'issue/issue_report.html'
+    MAX_EMBED_SIZE = 20 * 1024 * 1024  # 单个文件内联上限 20MB
+
+    TEXT_EXTS = {'.txt', '.log', '.out', '.csv', '.md', '.py', '.sh', '.json', '.xml', '.ini', '.cfg'}
+    IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+
+    def get(self, request, pk):
+        issue = get_object_or_404(
+            Issue.objects.select_related('project', 'solution', 'submitter'),
+            pk=pk
+        )
+        solution_records = issue.solution_records.prefetch_related(
+            'details__test_items', 'details__created_by'
+        )
+        abnormal_samples = issue.abnormal_samples.prefetch_related(
+            'log_files__uploaded_by'
+        )
+
+        report_samples = []
+        archive_files = []  # 用于生成下载包 [(safe_name, local_path)]
+        used_names = set()
+
+        for sample in abnormal_samples:
+            log_files = []
+            for lf in sample.log_files.all():
+                entry = self._build_log_entry(lf, used_names)
+                log_files.append(entry)
+                if entry.get('local_path'):
+                    archive_files.append((entry['archive_name'], entry['local_path']))
+            report_samples.append({'sample': sample, 'log_files': log_files})
+
+        # 生成原始日志 7z 包并 base64 编码
+        logs_archive_base64 = ''
+        if archive_files:
+            logs_archive_base64 = self._build_logs_archive(archive_files)
+
+        context = {
+            'issue': issue,
+            'solution_records': solution_records,
+            'report_samples': report_samples,
+            'generated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'logs_archive_base64': logs_archive_base64,
+            'logs_archive_name': 'issue_logs_{}.7z'.format(issue.issue_number),
+        }
+        response = render(request, self.template_name, context)
+        response['Content-Disposition'] = 'attachment; filename="issue_report_{}.html"'.format(issue.issue_number)
+        return response
+
+    def _build_log_entry(self, lf, used_names):
+        entry = {
+            'filename': lf.filename,
+            'log_type': lf.get_log_type_display(),
+            'description': lf.description or '',
+            'uploaded_at': lf.uploaded_at.strftime('%Y-%m-%d %H:%M'),
+            'uploader': lf.uploaded_by.get_full_name() or lf.uploaded_by.username,
+            'size': lf.size,
+            'size_display': self._format_size(lf.size),
+            'is_text': False,
+            'is_image': False,
+            'content': '',
+            'image_data': '',
+            'too_large': False,
+            'missing': False,
+            'archive_name': '',
+            'local_path': '',
+        }
+
+        lower_name = lf.filename.lower()
+        ext = os.path.splitext(lower_name)[1]
+
+        file_path = lf.file.path if lf.file else None
+        if file_path and os.path.exists(file_path):
+            safe_name = self._unique_name(lf.filename, used_names)
+            entry['archive_name'] = safe_name
+            entry['local_path'] = file_path
+
+            if lf.size > self.MAX_EMBED_SIZE:
+                entry['too_large'] = True
+            else:
+                try:
+                    with open(file_path, 'rb') as f:
+                        raw = f.read()
+                except Exception:
+                    raw = b''
+
+                if ext in self.TEXT_EXTS or (not ext and self._looks_like_text(raw)):
+                    try:
+                        entry['content'] = raw.decode('utf-8', errors='replace')
+                        entry['is_text'] = True
+                    except Exception:
+                        entry['too_large'] = True
+                elif ext in self.IMAGE_EXTS:
+                    mime = {
+                        '.png': 'image/png',
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.gif': 'image/gif',
+                        '.bmp': 'image/bmp',
+                        '.webp': 'image/webp',
+                    }.get(ext, 'image/png')
+                    entry['image_data'] = 'data:{};base64,'.format(mime) + base64.b64encode(raw).decode('ascii')
+                    entry['is_image'] = True
+                else:
+                    # 未知类型：尝试识别为文本，否则视为过大不嵌入
+                    try:
+                        entry['content'] = raw.decode('utf-8', errors='replace')
+                        entry['is_text'] = True
+                    except Exception:
+                        entry['too_large'] = True
+        else:
+            entry['missing'] = True
+
+        return entry
+
+    def _build_logs_archive(self, archive_files):
+        tmp_dir = tempfile.mkdtemp(prefix='issue_logs_')
+        logs_dir = os.path.join(tmp_dir, 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+
+        for safe_name, local_path in archive_files:
+            shutil.copy2(local_path, os.path.join(logs_dir, safe_name))
+
+        archive_path = os.path.join(tmp_dir, 'logs.7z')
+        with py7zr.SevenZipFile(archive_path, 'w') as archive:
+            archive.writeall(logs_dir, 'logs')
+
+        with open(archive_path, 'rb') as f:
+            data = f.read()
+
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return base64.b64encode(data).decode('ascii')
+
+    def _unique_name(self, filename, used_names):
+        name = filename or 'unknown'
+        if name not in used_names:
+            used_names.add(name)
+            return name
+        base, ext = os.path.splitext(name)
+        idx = 1
+        while True:
+            candidate = '{}_{}{}'.format(base, idx, ext)
+            if candidate not in used_names:
+                used_names.add(candidate)
+                return candidate
+            idx += 1
+
+    def _looks_like_text(self, raw):
+        if not raw:
+            return True
+        sample = raw[:4096]
+        try:
+            sample.decode('utf-8')
+            return True
+        except Exception:
+            pass
+        if b'\x00' in sample:
+            return False
+        text_chars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7f})
+        return all(b in text_chars for b in sample)
+
+    def _format_size(self, bytes_):
+        if bytes_ < 1024:
+            return '{} B'.format(bytes_)
+        if bytes_ < 1024 * 1024:
+            return '{:.1f} KB'.format(bytes_ / 1024)
+        if bytes_ < 1024 * 1024 * 1024:
+            return '{:.1f} MB'.format(bytes_ / 1024 / 1024)
+        return '{:.1f} GB'.format(bytes_ / 1024 / 1024 / 1024)
